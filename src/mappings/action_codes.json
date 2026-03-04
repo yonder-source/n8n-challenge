@@ -1,0 +1,71 @@
+{
+  "version": "1.0.0",
+  "actions": {
+    "setup_troubleshoot_auth": {
+      "route_team": "support",
+      "needs_human_review": false,
+      "reply_style": "instructional",
+      "sla_hours": 24
+    },
+    "setup_sync_performance": {
+      "route_team": "support",
+      "needs_human_review": false,
+      "reply_style": "instructional",
+      "sla_hours": 24
+    },
+    "security_standard_info": {
+      "route_team": "support",
+      "needs_human_review": false,
+      "reply_style": "compliance-safe",
+      "sla_hours": 24
+    },
+    "security_escalate_report": {
+      "route_team": "security",
+      "needs_human_review": true,
+      "reply_style": "acknowledge-and-escalate",
+      "sla_hours": 12
+    },
+    "pricing_standard": {
+      "route_team": "sales",
+      "needs_human_review": false,
+      "reply_style": "commercial",
+      "sla_hours": 24
+    },
+    "pricing_enterprise_escalation": {
+      "route_team": "sales",
+      "needs_human_review": true,
+      "reply_style": "acknowledge-and-escalate",
+      "sla_hours": 8
+    },
+    "hr_forward": {
+      "route_team": "people",
+      "needs_human_review": true,
+      "reply_style": "polite-forward",
+      "sla_hours": 48
+    },
+    "vendor_decline": {
+      "route_team": "none",
+      "needs_human_review": false,
+      "reply_style": "polite-decline",
+      "sla_hours": 0
+    },
+    "billing_escalation": {
+      "route_team": "finance",
+      "needs_human_review": true,
+      "reply_style": "acknowledge-and-escalate",
+      "sla_hours": 12
+    },
+    "legal_escalation": {
+      "route_team": "legal",
+      "needs_human_review": true,
+      "reply_style": "acknowledge-and-escalate",
+      "sla_hours": 12
+    },
+    "misdirected_ignore_or_notify": {
+      "route_team": "none",
+      "needs_human_review": false,
+      "reply_style": "short-redirect",
+      "sla_hours": 0
+    }
+  }
+}

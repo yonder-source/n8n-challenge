@@ -1,0 +1,685 @@
+{
+  "name": "wf_inbox_classifier",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "inbox-classifier",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "Webhook_Inbox",
+      "name": "Inbox Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1320,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $json.body && typeof $json.body === 'object' ? $json.body : $json;\nconst from = (payload.from ?? payload.from_email ?? '').toString().trim();\nconst subjectRaw = (payload.subject ?? '').toString().trim();\nconst bodyRaw = (payload.body ?? '').toString().trim();\nconst subject = subjectRaw.replace(/^(re:|fwd:|fw:)\\s*/i, '').replace(/\\s+/g, ' ').trim();\nconst body = bodyRaw.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').replace(/\\s+/g, ' ').trim().slice(0, 4000);\nconst combined = `${subject}\\n${body}`.toLowerCase();\nconst highRiskKeywords = ['soc 2', 'hipaa', 'baa', 'gdpr', 'dpa', 'contract', 'legal', 'security', 'encryption'];\nconst isHighRisk = highRiskKeywords.some((keyword) => combined.includes(keyword));\nreturn [{\n  from,\n  subject,\n  body,\n  query_text: `Subject: ${subject}\\nBody: ${body}`,\n  is_high_risk: isHighRisk,\n  received_at: new Date().toISOString()\n}];"
+      },
+      "id": "Code_Normalize",
+      "name": "Normalize Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1080,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = `${$json.subject}\\n${$json.body}`.toLowerCase();\nlet fastPath = false;\nlet category = '';\nlet routeTeam = 'support';\nlet needsEscalation = false;\nlet draftReply = '';\n\nif (/\\b(statement|checking account|bank account|monthly checking)\\b/.test(text)) {\n  fastPath = true;\n  category = 'Misdirected / Wrong Recipient';\n  routeTeam = 'none';\n  needsEscalation = false;\n  draftReply = 'Thanks for your message. This inbox belongs to Nexus Integrations support and appears to be the wrong recipient.';\n} else if (/\\b(recruiter|candidates available|schedule a call)\\b/.test(text)) {\n  fastPath = true;\n  category = 'Spam / Vendor Solicitation';\n  routeTeam = 'none';\n  needsEscalation = false;\n  draftReply = 'Thank you for reaching out. We are not exploring recruiter/vendor solicitations through this support channel at the moment.';\n}\n\nreturn [{ ...$json, fast_path: fastPath, fast_path_output: {\n  category,\n  draft_reply: draftReply,\n  confidence: fastPath ? 0.98 : 0,\n  needs_escalation: needsEscalation,\n  route_team: routeTeam,\n  evidence_refs: ['regex_fast_path']\n}}];"
+      },
+      "id": "Code_RuleSignals",
+      "name": "Regex Signals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -840,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fast-path",
+              "leftValue": "={{$json.fast_path}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "If_FastPath",
+      "name": "Fast Path?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -620,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fp-output",
+              "name": "output",
+              "value": "={{$json.fast_path_output}}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "Set_FastPathOutput",
+      "name": "Set Fast Path Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -380,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.EMBEDDING_URL}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.OPENAI_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'text-embedding-3-small', input: $json.query_text } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "Http_Embed",
+      "name": "Embed Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -380,
+        420
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const vector = $json.data?.[0]?.embedding ?? [];\nconst prior = $input.first().json;\nreturn [{ ...prior, embedding_vector: vector }];"
+      },
+      "id": "Code_ExtractEmbedding",
+      "name": "Extract Embedding",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.VECTOR_SEARCH_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { namespace: 'examples', vector: $json.embedding_vector, top_k: 8, include_metadata: true } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "Http_RetrieveExamples",
+      "name": "Retrieve Examples",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        100,
+        420
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const matches = $json.matches ?? $json.data ?? [];\nconst top1 = Number(matches?.[0]?.score ?? 0);\nconst top2 = Number(matches?.[1]?.score ?? 0);\nconst rerank = Number(matches?.[0]?.rerank_score ?? top1);\nconst score = 0.5 * top1 + 0.3 * (top1 - top2) + 0.2 * rerank;\nconst highRisk = Boolean($json.is_high_risk);\nreturn [{\n  ...$json,\n  retrieved_examples: matches.slice(0, 3),\n  sim_top1: top1,\n  sim_top2: top2,\n  rerank_score: rerank,\n  confidence_score: Math.max(0, Math.min(1, Number(score.toFixed(4)))),\n  should_use_tier2: highRisk || score < 0.78\n}];"
+      },
+      "id": "Code_Confidence",
+      "name": "Compute Confidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        340,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "use-tier2",
+              "leftValue": "={{$json.should_use_tier2}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "If_Tier",
+      "name": "Use Tier2?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        580,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.LLM_CLASSIFIER_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'gpt-4.1-mini', input: { system: 'Classify email intent and return JSON', email: { from: $json.from, subject: $json.subject, body: $json.body }, candidates: $json.retrieved_examples } } }}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "id": "Http_LlmTier1",
+      "name": "LLM Classifier Tier1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        820,
+        540
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.LLM_CLASSIFIER_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'gpt-4.1', input: { system: 'Classify high-risk email intent and return JSON', email: { from: $json.from, subject: $json.subject, body: $json.body }, candidates: $json.retrieved_examples } } }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "Http_LlmTier2",
+      "name": "LLM Classifier Tier2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        820,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.output ?? $json.response ?? $json;\nlet parsed = raw;\nif (typeof raw === 'string') {\n  try {\n    parsed = JSON.parse(raw);\n  } catch {\n    parsed = {};\n  }\n}\nconst category = parsed.category ?? 'Setup Question';\nconst routeTeam = parsed.route_team ?? (category === 'Pricing Question' ? 'sales' : 'support');\nconst needsEscalation = Boolean(parsed.needs_escalation) || $json.confidence_score < 0.78;\nconst confidence = Number(parsed.confidence ?? $json.confidence_score ?? 0.5);\nreturn [{\n  ...$json,\n  category,\n  route_team: routeTeam,\n  needs_escalation: needsEscalation,\n  confidence: Math.max(0, Math.min(1, confidence))\n}];"
+      },
+      "id": "Code_ParseClassifier",
+      "name": "Parse Classifier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "needs-review",
+              "leftValue": "={{$json.needs_escalation || $json.confidence < 0.78}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "If_Review",
+      "name": "Needs Human Review?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1300,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "mode": "name",
+          "value": "wf_human_review_queue"
+        },
+        "mode": "runOnceForEachItem",
+        "options": {}
+      },
+      "id": "Exec_HumanReview",
+      "name": "Queue Human Review",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.VECTOR_SEARCH_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { namespace: 'kb_policy', query_text: $json.query_text, top_k: 4, include_metadata: true } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "Http_RetrieveKB",
+      "name": "Retrieve KB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        540
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.LLM_REPLY_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'gpt-4.1-mini', input: { system: 'Draft grounded reply using evidence only', email: { from: $json.from, subject: $json.subject, body: $json.body }, category: $json.category, evidence: $json.matches ?? $json.data ?? [] } } }}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "id": "Http_Reply",
+      "name": "LLM Reply Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        540
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.output ?? $json.response ?? $json;\nlet parsed = raw;\nif (typeof raw === 'string') {\n  try { parsed = JSON.parse(raw); } catch { parsed = {}; }\n}\nreturn [{\n  category: $json.category,\n  draft_reply: parsed.draft_reply ?? 'Thanks for your email. We are routing your request to the right team.',\n  confidence: $json.confidence ?? $json.confidence_score ?? 0.5,\n  needs_escalation: Boolean($json.needs_escalation),\n  route_team: $json.route_team ?? 'support',\n  evidence_refs: parsed.used_evidence_ids ?? []\n}];"
+      },
+      "id": "Code_FormatMain",
+      "name": "Format Main Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  category: $json.category ?? $json.fast_path_output?.category ?? 'Setup Question',\n  draft_reply: 'Thanks for your message. Your request has been escalated to a human reviewer for confirmation.',\n  confidence: $json.confidence ?? $json.confidence_score ?? 0.5,\n  needs_escalation: true,\n  route_team: $json.route_team ?? 'support',\n  evidence_refs: ['human_review_queue']\n}];"
+      },
+      "id": "Code_FormatEscalation",
+      "name": "Format Escalation Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [$json.output];"
+      },
+      "id": "Code_FastUnwrap",
+      "name": "Fast Output Unwrap",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "Respond_Webhook",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        2260,
+        360
+      ]
+    }
+  ],
+  "connections": {
+    "Inbox Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Email": {
+      "main": [
+        [
+          {
+            "node": "Regex Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Regex Signals": {
+      "main": [
+        [
+          {
+            "node": "Fast Path?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fast Path?": {
+      "main": [
+        [
+          {
+            "node": "Set Fast Path Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Embed Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Fast Path Output": {
+      "main": [
+        [
+          {
+            "node": "Fast Output Unwrap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fast Output Unwrap": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embed Query": {
+      "main": [
+        [
+          {
+            "node": "Extract Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Embedding": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Examples",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Examples": {
+      "main": [
+        [
+          {
+            "node": "Compute Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Confidence": {
+      "main": [
+        [
+          {
+            "node": "Use Tier2?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Tier2?": {
+      "main": [
+        [
+          {
+            "node": "LLM Classifier Tier2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM Classifier Tier1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Classifier Tier1": {
+      "main": [
+        [
+          {
+            "node": "Parse Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Classifier Tier2": {
+      "main": [
+        [
+          {
+            "node": "Parse Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Classifier": {
+      "main": [
+        [
+          {
+            "node": "Needs Human Review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Human Review?": {
+      "main": [
+        [
+          {
+            "node": "Queue Human Review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retrieve KB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Human Review": {
+      "main": [
+        [
+          {
+            "node": "Format Escalation Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve KB": {
+      "main": [
+        [
+          {
+            "node": "LLM Reply Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Reply Draft": {
+      "main": [
+        [
+          {
+            "node": "Format Main Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Main Output": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Escalation Output": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "versionId": "1",
+  "triggerCount": 0,
+  "tags": []
+}

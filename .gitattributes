@@ -1,0 +1,12 @@
+* text=auto
+
+# Force LF for scripts and docs
+*.py text eol=lf
+*.md text eol=lf
+docs/* text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary

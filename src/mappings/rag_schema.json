@@ -1,0 +1,31 @@
+{
+  "version": "1.0.0",
+  "canonical_fields": [
+    "email_id",
+    "from_name",
+    "from_email",
+    "to_email",
+    "subject",
+    "body",
+    "expected_category",
+    "expected_action"
+  ],
+  "embedding_input_fields": [
+    "subject_clean",
+    "body_clean",
+    "sender_domain"
+  ],
+  "non_embedding_fields": [
+    "expected_category",
+    "expected_action"
+  ],
+  "metadata_fields": [
+    "email_id",
+    "source_type",
+    "split",
+    "language",
+    "sender_domain",
+    "review_status",
+    "reviewed_at"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "version": "1.0.0",
+  "tiers": {
+    "tier1": {
+      "purpose": "default_classification",
+      "provider_priority": ["openai", "gemini", "anthropic"],
+      "model": {
+        "openai": "gpt-4.1-mini",
+        "gemini": "gemini-2.0-flash",
+        "anthropic": "claude-3-5-haiku-latest"
+      },
+      "max_tokens": 350,
+      "temperature": 0.1
+    },
+    "tier2": {
+      "purpose": "high_risk_or_low_confidence",
+      "provider_priority": ["openai", "anthropic", "gemini"],
+      "model": {
+        "openai": "gpt-4.1",
+        "gemini": "gemini-2.5-pro",
+        "anthropic": "claude-3-7-sonnet-latest"
+      },
+      "max_tokens": 500,
+      "temperature": 0
+    }
+  },
+  "routing_rules": {
+    "force_tier2_keywords": [
+      "soc 2",
+      "hipaa",
+      "baa",
+      "gdpr",
+      "dpa",
+      "contract",
+      "legal",
+      "security",
+      "encryption"
+    ],
+    "min_confidence_for_auto_reply": 0.78,
+    "min_confidence_for_no_human_review": 0.82,
+    "escalation_band": [0.6, 0.78]
+  }
+}

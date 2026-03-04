@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0",
+  "subject_prefixes_to_strip": ["re:", "fwd:", "fw:"],
+  "signature_markers": [
+    "best regards",
+    "regards",
+    "thanks",
+    "thank you",
+    "sincerely"
+  ],
+  "footer_patterns": [
+    "sent from my",
+    "confidentiality notice"
+  ],
+  "collapse_whitespace": true,
+  "max_body_chars": 4000,
+  "pii_mask_fields": ["from_email", "phone", "address"],
+  "language_detection_enabled": true
+}

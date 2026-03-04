@@ -1,0 +1,185 @@
+email_id,from_name,https://drive.google.com/drive/folders/1LDQbLJyvmebhDOSMntTccbgKIVPS0HHb?usp=sharing,to_email,subject,body,expected_category,expected_action
+1.1,Sarah Mitchell,sarah.mitchell@brighthorizonltd.com,support@nexusintegrations.com,Help connecting Salesforce,"Hi there,
+
+I just signed up for Nexus and I'm trying to connect our Salesforce account. When I click ""Connect Salesforce"" it redirects me to login, but then I get an error saying ""Authentication Failed"".
+
+I'm using my admin credentials and I'm sure the password is correct. Is there something else I need to enable in Salesforce first?
+
+Thanks,
+Sarah Mitchell
+Bright Horizon Consulting",Setup Question,Provide authentication troubleshooting steps from Setup FAQ
+1.2,Michael O'Brien,michael.obrien@dataflowsolutions.com,support@nexusintegrations.com,Question about sync timing,"Hello,
+
+We're on the Professional plan and I noticed our Salesforce contacts are syncing to Marketo, but there's about a 10-minute delay. The documentation says Professional plans get real-time sync within 5 minutes.
+
+Is this normal? Do I need to configure something differently to get faster syncing?
+
+Best regards,
+Michael O'Brien
+DataFlow Solutions Inc.",Setup Question,Explain real-time sync expectations and how to verify webhook configuration
+1.3,Alex Rivera,alex.rivera@horizonecom.com,support@nexusintegrations.com,Custom field mapping not working,"Hi support team,
+
+I'm trying to map our custom field ""Customer_Lifetime_Value__c"" from Salesforce to a field in our email platform, but I can't find it in the field mapping dropdown. The field definitely exists in Salesforce and I have access to it.
+
+How do I get custom fields to show up in Nexus?
+
+Thanks,
+Alex Rivera
+Horizon E-commerce Platform",Setup Question,Explain how to refresh fields and verify permissions
+1.4,Rebecca Kim,rkim@prismdesign.co,support@nexusintegrations.com,Just started trial - where do I begin?,"Hello,
+
+I just signed up for the 14-day trial and I'm feeling a bit overwhelmed. We want to connect HubSpot and Mailchimp, but I'm not sure where to start or what the steps are.
+
+Is there a quick start guide or video I can follow?
+
+Thanks!
+Rebecca Kim
+Prism Design Studios",Setup Question,Provide getting started resources and basic setup steps
+2.1,Margaret Chen,margaret.chen@pinnaclefinancial.com,support@nexusintegrations.com,Encryption standards question,"Hi,
+
+Our compliance team is asking about your encryption standards. Specifically:
+1. Is data encrypted at rest and in transit?
+2. What encryption protocols do you use?
+
+We need this for our internal security review.
+
+Thanks,
+Margaret Chen
+CTO, Pinnacle Financial Services",Security Question,Provide standard encryption information from Security Guidelines
+2.2,Angela Ramirez,aramirez@fortresscyber.com,support@nexusintegrations.com,SOC 2 report for vendor assessment,"Hello Nexus team,
+
+We're evaluating your platform as part of our vendor assessment process. Can you provide your most recent SOC 2 Type II report? We're prepared to sign an NDA if required.
+
+Also, do you have ISO 27001 certification?
+
+Best regards,
+Angela Ramirez
+Fortress Cybersecurity",Security Question,"Confirm SOC 2 availability, explain NDA process, provide ISO status - then escalate to security team for report delivery"
+2.3,Dr. Samantha Lee,samantha.lee@odysseyhealthcare.com,support@nexusintegrations.com,HIPAA compliance verification,"Hi,
+
+We're a healthcare organization and we need to verify that Nexus is HIPAA compliant. We already have an Enterprise plan with you, but we need to ensure our BAA is up to date.
+
+Can someone confirm our HIPAA compliance status and send us the current BAA?
+
+Thanks,
+Dr. Samantha Lee
+CIO, Odyssey Healthcare Systems",Security Question,"Confirm HIPAA available for Enterprise, then escalate to security team for BAA verification"
+2.4,Michelle Park,mpark@dynastyretail.com,support@nexusintegrations.com,Quick question about data storage,"Hi there,
+
+Where are your servers located? We're based in California and need to know if our data stays in the US or if it's stored internationally.
+
+Also, can we choose which region our data is stored in?
+
+Thanks,
+Michelle Park
+Dynasty Retail Group",Security Question,Provide data location information and explain regional options by plan tier
+3.1,Jordan Taylor,jordan.taylor@velocitysports.com,support@nexusintegrations.com,Starter vs Professional - help me decide,"Hi,
+
+We're currently on the Starter plan but we're growing fast. I'm trying to understand what we get if we upgrade to Professional.
+
+Specifically, we need to connect more than 3 integrations soon, and we want faster syncing. What's the real difference between the plans?
+
+Jordan Taylor
+Velocity Sports Management",Pricing Question,Provide plan comparison from pricing documentation
+3.2,Dr. Emily Rodriguez,emily.rodriguez@coastalhealth.org,support@nexusintegrations.com,Nonprofit pricing?,"Hello,
+
+We're a nonprofit healthcare clinic and we're interested in your Professional plan. Do you offer any discounts for nonprofit organizations?
+
+If so, what documentation do you need from us?
+
+Best,
+Dr. Emily Rodriguez
+Coastal Healthcare Services",Pricing Question,"Confirm 25% nonprofit discount, explain requirements"
+3.3,Bradley Thompson,bthompson@redrockip.com,support@nexusintegrations.com,Enterprise pricing for large deployment,"Hi Nexus team,
+
+We're a 500-person investment firm evaluating your platform. We'd need:
+- 20+ integrations
+- Around 500,000 API calls per month
+- SSO with our Okta setup
+- Dedicated support
+
+Can you provide Enterprise pricing for this scope? We're also evaluating two competitors, so timeline matters.
+
+Bradley Thompson
+Managing Partner, RedRock Investment Partners",Pricing Question (requires sales escalation),"Acknowledge Enterprise interest, escalate to sales team for custom quote"
+3.4,Jennifer Wu,jwu@apextech.com,support@nexusintegrations.com,Question about API limits,"Hello,
+
+We're on Professional plan (50,000 API calls/month) but we're consistently hitting 55,000-60,000 calls. I got an email saying we'll be charged overage fees.
+
+How much is the overage cost per 1,000 calls? And would it be cheaper to just upgrade to Enterprise?
+
+Thanks,
+Jennifer Wu
+Apex Technologies Group",Pricing Question,"Provide overage pricing, explain Enterprise might be better fit, suggest sales contact"
+4.1,Daniel Chen,danielchen.dev@gmail.com,support@nexusintegrations.com,Application for Senior Software Engineer position,"Dear Hiring Manager,
+
+I am writing to express my interest in the Senior Software Engineer position I saw posted on LinkedIn. I have 8 years of experience in full-stack development with a focus on integration platforms and APIs.
+
+I've attached my resume and portfolio for your consideration. I'm particularly excited about Nexus's mission to simplify business integrations.
+
+Looking forward to hearing from you.
+
+Best regards,
+Daniel Chen
+danielchen.dev@gmail.com",Job Application / HR,Escalate to people/HR team (info@nexusintegrations.com)
+4.2,Thomas Warren,thomas.warren@techconsult.io,support@nexusintegrations.com,Partnership opportunity,"Hi Nexus team,
+
+I run a technology consulting firm that works with mid-size businesses. We're always looking for integration solutions to recommend to our clients.
+
+I'd like to explore a referral partnership or reseller arrangement. Who should I speak with about this?
+
+Thanks,
+Thomas Warren
+CEO, Warren Tech Consulting",Partnership / Business Development,Escalate to sales/business development team
+4.3,Sarah Martinez,sarah.student@university.edu,support@nexusintegrations.com,Summer internship opportunities,"Hello,
+
+I'm a computer science student at State University graduating in 2026. I'm very interested in API development and integration platforms. Do you offer summer internships?
+
+I'd love to learn more about opportunities at Nexus.
+
+Thank you,
+Sarah Martinez
+sarah.student@university.edu",Job Application / HR,Escalate to people/HR team
+4.4,Jason Miller,jason@talentscout.com,support@nexusintegrations.com,Top software engineers available now,"Hi there,
+
+I'm a technical recruiter with access to amazing software engineering talent. We specialize in placing senior engineers, architects, and engineering managers.
+
+Are you currently hiring? I have 3 excellent candidates available immediately. Let me know if you'd like to schedule a call.
+
+Best,
+Jason Miller
+TalentScout Recruiting",Spam / Vendor Solicitation,"No response needed, or polite decline"
+5.1,Robert Jameson,rjameson@summitfinancial.com,support@nexusintegrations.com,Missing invoice for December,"Hi,
+
+Our accounting department is asking about the December invoice. We're on the Starter Annual plan and we should have been billed on December 15th, but we haven't received an invoice yet.
+
+Can you resend it to accounting@summitfinancial.com?
+
+Thanks,
+Robert Jameson
+Summit Financial Advisors",Billing / Finance,Escalate to finance/operations team
+5.2,William Foster,wfoster@spectrumtelecom.com,support@nexusintegrations.com,Enterprise contract renewal,"Hello,
+
+Our Enterprise contract is up for renewal in March. We'd like to discuss renewal terms and potentially adding more integrations.
+
+Who should I contact about this? Should I reach out to our account manager directly?
+
+William Foster
+VP Technology, Spectrum Telecom Group",Contract / Legal,Escalate to sales/account management
+5.3,Random Bank Customer Service,customer.service@randombank.com,support@nexusintegrations.com,Your checking account statement,"Dear Customer,
+
+Your monthly checking account statement is now available. Please log in to view your statement and recent transactions.
+
+If you have questions about your account, please contact us at 1-800-BANK-123.
+
+Sincerely,
+Random Bank Customer Service",Misdirected / Wrong Recipient,"Ignore or send brief ""wrong recipient"" note"
+5.4,Dr. Nathan Foster,nfoster@clearwaterpharma.com,support@nexusintegrations.com,Data Processing Agreement needed,"Hi Nexus,
+
+We're in final stages of evaluation and our legal team needs a signed Data Processing Agreement (DPA) that covers GDPR requirements. We're a pharmaceutical company with EU operations.
+
+Can you provide this? We'd also need any relevant privacy documentation.
+
+Thanks,
+Dr. Nathan Foster
+Clearwater Pharmaceuticals",Legal / Compliance,"Acknowledge request, escalate to security/legal team for DPA"

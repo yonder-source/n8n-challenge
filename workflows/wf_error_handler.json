@@ -1,0 +1,214 @@
+{
+  "name": "wf_error_handler",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "Trigger_Error",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const message = ($json.error?.message ?? '').toString().toLowerCase();\nconst transientHints = ['timeout', '429', 'rate limit', 'econnreset', 'temporarily unavailable'];\nconst isTransient = transientHints.some((hint) => message.includes(hint));\nreturn [{\n  workflow: $json.workflow?.name ?? 'unknown',\n  executionId: $json.execution?.id ?? null,\n  message: $json.error?.message ?? 'unknown error',\n  stack: $json.error?.stack ?? '',\n  transient: isTransient,\n  occurred_at: new Date().toISOString(),\n  severity: isTransient ? 'warning' : 'critical'\n}];"
+      },
+      "id": "Code_ClassifyError",
+      "name": "Classify Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-transient",
+              "leftValue": "={{$json.transient}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "If_Transient",
+      "name": "Transient Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -260,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "event-transient",
+              "name": "event",
+              "value": "transient_error_detected",
+              "type": "string"
+            },
+            {
+              "id": "action-transient",
+              "name": "recommended_action",
+              "value": "retry_with_backoff",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "Set_Transient",
+      "name": "Set Transient Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -20,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "event-permanent",
+              "name": "event",
+              "value": "permanent_error_detected",
+              "type": "string"
+            },
+            {
+              "id": "action-permanent",
+              "name": "recommended_action",
+              "value": "dead_letter_and_manual_investigation",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "Set_Permanent",
+      "name": "Set Permanent Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -20,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ALERT_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { source: 'wf_error_handler', alert: $json } }}",
+        "options": {}
+      },
+      "id": "Http_AlertOps",
+      "name": "Alert Ops",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        280
+      ],
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Classify Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Error": {
+      "main": [
+        [
+          {
+            "node": "Transient Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transient Error?": {
+      "main": [
+        [
+          {
+            "node": "Set Transient Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Permanent Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Transient Payload": {
+      "main": [
+        [
+          {
+            "node": "Alert Ops",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Permanent Payload": {
+      "main": [
+        [
+          {
+            "node": "Alert Ops",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "versionId": "1",
+  "triggerCount": 0,
+  "tags": []
+}

@@ -1,0 +1,246 @@
+{
+  "name": "wf_feedback_to_rag",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "Trigger_ExecuteWorkflow",
+      "name": "Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -720,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "approved-check",
+              "leftValue": "={{$json.review_status || 'approved'}}",
+              "rightValue": "approved",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "If_Approved",
+      "name": "Approved Review?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -500,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const subject = ($json.subject ?? '').toString().trim();\nconst body = ($json.body ?? '').toString().replace(/\\s+/g, ' ').trim().slice(0, 4000);\nconst from = ($json.from ?? '').toString().trim();\nconst senderDomain = from.includes('@') ? from.split('@')[1].toLowerCase() : 'unknown';\nreturn [{\n  ...$json,\n  vector_text: `Subject: ${subject}\\nBody: ${body}\\nSenderDomain: ${senderDomain}`,\n  vector_id: `reviewed::${$json.email_id ?? Date.now()}`,\n  sender_domain: senderDomain\n}];"
+      },
+      "id": "Code_BuildText",
+      "name": "Build Embedding Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.EMBEDDING_URL}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.OPENAI_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'text-embedding-3-small', input: $json.vector_text } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "Http_CreateEmbedding",
+      "name": "Create Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -20,
+        180
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const vector = $json.data?.[0]?.embedding ?? [];\nreturn [{ ...$input.first().json, embedding_vector: vector }];"
+      },
+      "id": "Code_ExtractVector",
+      "name": "Extract Vector",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.VECTOR_UPSERT_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { namespace: 'examples', points: [{ id: $json.vector_id, vector: $json.embedding_vector, payload: { source_type: 'human_reviewed', sender_domain: $json.sender_domain, reviewed_at: new Date().toISOString(), split: 'prod_feedback' } }] } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "Http_Upsert",
+      "name": "Upsert Vector",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        180
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ status: 'indexed', vector_id: $json.vector_id, namespace: 'examples' }];"
+      },
+      "id": "Code_Audit",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ status: 'skipped', reason: 'review_not_approved' }];"
+      },
+      "id": "Code_Skip",
+      "name": "Skip Not Approved",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        380
+      ]
+    }
+  ],
+  "connections": {
+    "Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Approved Review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved Review?": {
+      "main": [
+        [
+          {
+            "node": "Build Embedding Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Not Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Embedding Text": {
+      "main": [
+        [
+          {
+            "node": "Create Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Embedding": {
+      "main": [
+        [
+          {
+            "node": "Extract Vector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Vector": {
+      "main": [
+        [
+          {
+            "node": "Upsert Vector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Vector": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "versionId": "1",
+  "triggerCount": 0,
+  "tags": []
+}

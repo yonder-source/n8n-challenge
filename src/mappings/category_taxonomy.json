@@ -1,0 +1,34 @@
+{
+  "version": "1.0.0",
+  "primary_categories": [
+    "Setup Question",
+    "Security Question",
+    "Pricing Question",
+    "Job Application / HR",
+    "Partnership / Business Development",
+    "Spam / Vendor Solicitation",
+    "Billing / Finance",
+    "Contract / Legal",
+    "Misdirected / Wrong Recipient",
+    "Legal / Compliance"
+  ],
+  "normalization": {
+    "Pricing Question (requires sales escalation)": {
+      "normalized_category": "Pricing Question",
+      "needs_escalation": true,
+      "route_team": "sales"
+    }
+  },
+  "high_risk_categories": [
+    "Security Question",
+    "Contract / Legal",
+    "Legal / Compliance"
+  ],
+  "auto_reply_blocked_categories": [
+    "Job Application / HR",
+    "Partnership / Business Development",
+    "Billing / Finance",
+    "Contract / Legal",
+    "Legal / Compliance"
+  ]
+}

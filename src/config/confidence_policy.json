@@ -1,0 +1,28 @@
+{
+  "version": "1.0.0",
+  "formula": {
+    "score": "0.50*sim_top1 + 0.30*(sim_top1-sim_top2) + 0.20*rerank_score",
+    "variables": {
+      "sim_top1": "Highest vector similarity score between incoming email and retrieved examples",
+      "sim_top2": "Second-highest vector similarity score between incoming email and retrieved examples",
+      "rerank_score": "Cross-check score from reranking step for the best candidate"
+    },
+    "weight_rationale": {
+      "sim_top1": "0.50 gives strongest influence to primary semantic match because it is the most stable signal across noisy emails.",
+      "margin_term": "0.30 on (sim_top1-sim_top2) penalizes ambiguous cases where two categories look similarly close.",
+      "rerank_score": "0.20 adds extra quality control from reranking without overpowering base retrieval signals."
+    },
+    "why_not_040_sim_top1": "Lowering sim_top1 from 0.50 to 0.40 makes the final score more sensitive to margin/rerank noise and can over-escalate clear matches. 0.50 is chosen as a balanced default before calibration.",
+    "calibration_note": "Run grid search on labeled validation data to tune weights and thresholds after collecting more reviewed emails."
+  },
+  "thresholds": {
+    "auto_reply": 0.78,
+    "human_review": 0.6,
+    "force_human_high_risk": true
+  },
+  "guardrails": {
+    "require_evidence_for_reply": true,
+    "min_evidence_items": 1,
+    "max_category_candidates": 3
+  }
+}

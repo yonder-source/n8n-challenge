@@ -1,0 +1,15 @@
+{
+  "name": "wf_eval_runner",
+  "version": "1.0.0",
+  "description": "Replay test dataset through classifier and record metrics",
+  "nodes": [
+    {"name": "Manual Trigger", "type": "n8n-nodes-base.manualTrigger", "purpose": "Start evaluation run"},
+    {"name": "Read CSV", "type": "n8n-nodes-base.readBinaryFile", "purpose": "Read data/test_dataset.csv"},
+    {"name": "Parse CSV", "type": "n8n-nodes-base.spreadsheetFile", "purpose": "Convert to items"},
+    {"name": "Split In Batches", "type": "n8n-nodes-base.splitInBatches", "purpose": "Iterate each row"},
+    {"name": "Call Classifier Webhook", "type": "n8n-nodes-base.httpRequest", "purpose": "Invoke wf_inbox_classifier"},
+    {"name": "Compare Prediction", "type": "n8n-nodes-base.code", "purpose": "Compute hit/miss and escalation metrics"},
+    {"name": "Append Run Log", "type": "n8n-nodes-base.spreadsheetFile", "purpose": "Append to eval/run_logs.csv"},
+    {"name": "Summarize Metrics", "type": "n8n-nodes-base.code", "purpose": "Build aggregate report"}
+  ]
+}

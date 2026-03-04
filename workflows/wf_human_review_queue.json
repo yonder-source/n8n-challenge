@@ -1,0 +1,129 @@
+{
+  "name": "wf_human_review_queue",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "Trigger_ExecuteWorkflow",
+      "name": "Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -720,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const reviewId = `review_${Date.now()}`;\nreturn [{\n  review_id: reviewId,\n  email_subject: $json.subject ?? '',\n  email_from: $json.from ?? '',\n  predicted_category: $json.category ?? 'unknown',\n  confidence: $json.confidence ?? 0,\n  needs_escalation: true,\n  route_team: $json.route_team ?? 'support',\n  evidence_refs: $json.evidence_refs ?? [],\n  created_at: new Date().toISOString(),\n  status: 'queued'\n}];"
+      },
+      "id": "Code_PreparePayload",
+      "name": "Prepare Review Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ALERT_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { event: 'human_review_queued', payload: $json } }}",
+        "options": {}
+      },
+      "id": "Http_SendAlert",
+      "name": "Send Review Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -260,
+        260
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "queued",
+              "name": "queued_for_review",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "review-id",
+              "name": "review_id",
+              "value": "={{$json.review_id}}",
+              "type": "string"
+            },
+            {
+              "id": "review-status",
+              "name": "review_status",
+              "value": "queued",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "Set_ReviewOutput",
+      "name": "Set Review Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -20,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Review Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Review Payload": {
+      "main": [
+        [
+          {
+            "node": "Send Review Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Review Notification": {
+      "main": [
+        [
+          {
+            "node": "Set Review Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "versionId": "1",
+  "triggerCount": 0,
+  "tags": []
+}

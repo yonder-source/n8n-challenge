@@ -1,0 +1,50 @@
+{
+  "version": "1.0.0",
+  "indexes": {
+    "examples": {
+      "description": "Historical reviewed examples for intent similarity only",
+      "embedding_model": "text-embedding-3-small",
+      "metric": "cosine",
+      "dimension": 1536,
+      "namespace": "examples",
+      "allowed_payload_fields": [
+        "email_id",
+        "subject_clean",
+        "body_clean",
+        "sender_domain",
+        "source_type",
+        "split",
+        "language",
+        "review_status",
+        "reviewed_at"
+      ],
+      "blocked_payload_fields": [
+        "expected_category",
+        "expected_action",
+        "gold_category",
+        "gold_action"
+      ]
+    },
+    "kb_policy": {
+      "description": "Official Nexus docs for grounded reply generation",
+      "embedding_model": "text-embedding-3-small",
+      "metric": "cosine",
+      "dimension": 1536,
+      "namespace": "kb_policy",
+      "allowed_payload_fields": [
+        "doc_id",
+        "title",
+        "section",
+        "source_url",
+        "source_type",
+        "effective_date",
+        "risk_level"
+      ]
+    }
+  },
+  "retrieval": {
+    "top_k_dense": 8,
+    "top_k_rerank": 3,
+    "min_similarity": 0.35
+  }
+}
