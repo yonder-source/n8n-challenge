@@ -15,6 +15,14 @@
 
 ## Entries
 
+### [2026-03-09] 以官方 challenge brief 作為交付範圍與驗收基準
+- 背景：既有專案記憶偏重 workflow 架構、RAG 與資料治理，但缺少競賽官方對 deliverables、評分方式與提交後驗證流程的摘要。
+- 決策：後續設計、實作與驗證一律以官方 Notion challenge brief 與 Nexus Integrations case study 為準，交付物需覆蓋 email agent、evaluation system、production webhook URL、workflow JSON export 與 60 秒 demo。
+- 原因：競賽不是只看本地測資是否可跑通；官方會以未見過的新情境直接呼叫 production webhook，重點是 grounded reply、正確分類、必要時升級人工，以及長期可驗證性。
+- 影響：後續 agent 必須優先避免針對公開測資過度擬合，並把泛化能力、評測流程與最終提交資產視為一級需求。
+- 替代方案：只以目前 repo 的技術骨架為主線繼續開發（不採用，容易偏離官方成功條件）。
+- 狀態：Accepted
+
 ### [2026-03-05] 採用雙軌策略：競賽可交付 MVP + 產品級安全機制
 - 背景：競賽要求可運作的郵件分類自動化，同時真實場景需控制幻覺、誤判與升級風險。
 - 決策：主流程以可評測 MVP 為核心，並同時納入規則前置、信心閘門、HITL、人工作業回寫、錯誤處理等產品級機制。
