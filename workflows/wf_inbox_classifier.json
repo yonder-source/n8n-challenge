@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const payload = $json.body && typeof $json.body === 'object' ? $json.body : $json;\nconst from = (payload.from ?? payload.from_email ?? '').toString().trim();\nconst subjectRaw = (payload.subject ?? '').toString().trim();\nconst bodyRaw = (payload.body ?? '').toString().trim();\nconst subject = subjectRaw.replace(/^(re:|fwd:|fw:)\\s*/i, '').replace(/\\s+/g, ' ').trim();\nconst body = bodyRaw.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').replace(/\\s+/g, ' ').trim().slice(0, 4000);\nconst combined = `${subject}\\n${body}`.toLowerCase();\nconst highRiskKeywords = ['soc 2', 'hipaa', 'baa', 'gdpr', 'dpa', 'contract', 'legal', 'security', 'encryption'];\nconst isHighRisk = highRiskKeywords.some((keyword) => combined.includes(keyword));\nreturn [{\n  from,\n  subject,\n  body,\n  query_text: `Subject: ${subject}\\nBody: ${body}`,\n  is_high_risk: isHighRisk,\n  received_at: new Date().toISOString()\n}];"
+        "jsCode": "const payload = $json.body && typeof $json.body === 'object' ? $json.body : $json;\nconst from = (payload.from ?? payload.from_email ?? '').toString().trim();\nconst subjectRaw = (payload.subject ?? '').toString().trim();\nconst bodyRaw = (payload.body ?? '').toString().trim();\nconst subject = subjectRaw.replace(/^(re:|fwd:|fw:)\\s*/i, '').replace(/\\s+/g, ' ').trim();\nconst body = bodyRaw.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').replace(/\\s+/g, ' ').trim().slice(0, 4000);\nconst combined = `${subject}\\n${body}`.toLowerCase();\nconst highRiskKeywords = ['soc 2', 'hipaa', 'baa', 'gdpr', 'dpa', 'contract', 'legal', 'security', 'encryption', 'breach', 'vulnerability', 'pentest', 'penetration test', 'invoice dispute', 'refund', 'discount', 'enterprise plan', 'custom quote'];\nconst isHighRisk = highRiskKeywords.some((keyword) => combined.includes(keyword));\nconst lexicalMultiIntent = /(also|another question|one more thing|as well as|and separately)\\b/i.test(`${subject}\\n${body}`);\nreturn [{\n  from,\n  subject,\n  body,\n  query_text: `Subject: ${subject}\\nBody: ${body}`,\n  is_high_risk: isHighRisk,\n  lexical_multi_intent: lexicalMultiIntent,\n  received_at: new Date().toISOString()\n}];"
       },
       "id": "Code_Normalize",
       "name": "Normalize Email",
@@ -174,7 +174,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const matches = $json.matches ?? $json.data ?? [];\nconst top1 = Number(matches?.[0]?.score ?? 0);\nconst top2 = Number(matches?.[1]?.score ?? 0);\nconst rerank = Number(matches?.[0]?.rerank_score ?? top1);\nconst score = 0.5 * top1 + 0.3 * (top1 - top2) + 0.2 * rerank;\nconst highRisk = Boolean($json.is_high_risk);\nreturn [{\n  ...$json,\n  retrieved_examples: matches.slice(0, 3),\n  sim_top1: top1,\n  sim_top2: top2,\n  rerank_score: rerank,\n  confidence_score: Math.max(0, Math.min(1, Number(score.toFixed(4)))),\n  should_use_tier2: highRisk || score < 0.78\n}];"
+        "jsCode": "const matches = Array.isArray($json.matches ?? $json.data) ? ($json.matches ?? $json.data) : [];\nconst toNumber = (value, fallback = 0) => {\n  const parsed = Number(value);\n  return Number.isFinite(parsed) ? parsed : fallback;\n};\nconst clamp = (value) => {\n  const numeric = toNumber(value);\n  return Math.max(0, Math.min(1, Number(numeric.toFixed(4))));\n};\nconst pickCategory = (match) => (match?.metadata?.normalized_category ?? match?.metadata?.category ?? match?.metadata?.label ?? match?.category ?? '').toString().trim();\nconst top1 = toNumber(matches?.[0]?.score);\nconst top2 = toNumber(matches?.[1]?.score);\nconst rerank = toNumber(matches?.[0]?.rerank_score, top1);\nconst margin = Math.max(0, top1 - top2);\nconst score = clamp((0.5 * top1) + (0.3 * margin) + (0.2 * rerank));\nconst topCategories = matches.slice(0, 3).map(pickCategory).filter(Boolean);\nconst uniqueTopCategories = [...new Set(topCategories)];\nconst noveltySignals = [];\nif (top1 < 0.72) noveltySignals.push('low_sim_top1');\nif (margin < 0.05) noveltySignals.push('small_margin');\nif (rerank < 0.68) noveltySignals.push('low_rerank');\nif (uniqueTopCategories.length > 1) noveltySignals.push('mixed_top_categories');\nconst noveltyDetected = noveltySignals.length >= 2;\nconst ambiguousRetrieval = margin < 0.08 || uniqueTopCategories.length > 1;\nreturn [{\n  ...$json,\n  retrieved_examples: matches.slice(0, 3),\n  retrieval_primary_category: topCategories[0] ?? '',\n  retrieval_top_categories: uniqueTopCategories,\n  sim_top1: top1,\n  sim_top2: top2,\n  rerank_score: rerank,\n  retrieval_margin: clamp(margin),\n  confidence_score: score,\n  retrieval_novelty_signals: noveltySignals,\n  novelty_detected: noveltyDetected,\n  ambiguous_retrieval: ambiguousRetrieval,\n  should_use_tier2: Boolean($json.is_high_risk) || Boolean($json.lexical_multi_intent) || noveltyDetected || score < 0.82\n}];"
       },
       "id": "Code_Confidence",
       "name": "Compute Confidence",
@@ -224,7 +224,7 @@
         "url": "={{$env.LLM_CLASSIFIER_URL}}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { model: 'gpt-4.1-mini', input: { system: 'Classify email intent and return JSON', email: { from: $json.from, subject: $json.subject, body: $json.body }, candidates: $json.retrieved_examples } } }}",
+        "jsonBody": "={{ { model: 'gpt-4.1-mini', input: { system: 'Classify email into one primary Nexus category and return JSON only with category, up to 3 category_candidates, optional secondary_categories, risk_tags, route_team, needs_escalation, reasoning_short, and confidence. Prefer escalation for legal, security, compliance, pricing negotiation, billing disputes, mixed-intent emails, or unclear policy coverage.', email: { from: $json.from, subject: $json.subject, body: $json.body }, candidates: $json.retrieved_examples, retrieval_primary_category: $json.retrieval_primary_category, novelty_signals: $json.retrieval_novelty_signals ?? [] } } }}",
         "options": {
           "timeout": 45000
         }
@@ -247,7 +247,7 @@
         "url": "={{$env.LLM_CLASSIFIER_URL}}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { model: 'gpt-4.1', input: { system: 'Classify high-risk email intent and return JSON', email: { from: $json.from, subject: $json.subject, body: $json.body }, candidates: $json.retrieved_examples } } }}",
+        "jsonBody": "={{ { model: 'gpt-4.1', input: { system: 'Classify this potentially high-risk email into one primary Nexus category and return JSON only with category, up to 3 category_candidates, optional secondary_categories, risk_tags, route_team, needs_escalation, reasoning_short, and confidence. Be conservative: if the case is legal, security, compliance, contract, billing dispute, pricing negotiation, unknown-policy, or mixed-intent, prefer escalation.', email: { from: $json.from, subject: $json.subject, body: $json.body }, candidates: $json.retrieved_examples, retrieval_primary_category: $json.retrieval_primary_category, novelty_signals: $json.retrieval_novelty_signals ?? [] } } }}",
         "options": {
           "timeout": 60000
         }
@@ -266,7 +266,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const raw = $json.output ?? $json.response ?? $json;\nlet parsed = raw;\nif (typeof raw === 'string') {\n  try {\n    parsed = JSON.parse(raw);\n  } catch {\n    parsed = {};\n  }\n}\nconst category = parsed.category ?? 'Setup Question';\nconst routeTeam = parsed.route_team ?? (category === 'Pricing Question' ? 'sales' : 'support');\nconst needsEscalation = Boolean(parsed.needs_escalation) || $json.confidence_score < 0.78;\nconst confidence = Number(parsed.confidence ?? $json.confidence_score ?? 0.5);\nreturn [{\n  ...$json,\n  category,\n  route_team: routeTeam,\n  needs_escalation: needsEscalation,\n  confidence: Math.max(0, Math.min(1, confidence))\n}];"
+        "jsCode": "const raw = $json.output ?? $json.response ?? $json;\nlet parsed = raw;\nif (typeof raw === 'string') {\n  try {\n    parsed = JSON.parse(raw);\n  } catch {\n    parsed = {};\n  }\n}\nconst toNumber = (value, fallback = 0) => {\n  const numeric = Number(value);\n  return Number.isFinite(numeric) ? numeric : fallback;\n};\nconst clamp = (value) => Math.max(0, Math.min(1, Number(toNumber(value).toFixed(4))));\nconst asStringArray = (value) => Array.isArray(value) ? value.map((item) => item.toString().trim()).filter(Boolean) : [];\nconst asCandidateArray = (value) => Array.isArray(value)\n  ? value\n      .map((candidate) => ({\n        label: (candidate?.label ?? candidate?.category ?? '').toString().trim(),\n        score: clamp(candidate?.score ?? candidate?.confidence ?? 0)\n      }))\n      .filter((candidate) => candidate.label)\n  : [];\nconst defaultRouteByCategory = {\n  'Setup Question': 'support',\n  'Security Question': 'security',\n  'Pricing Question': 'sales',\n  'Job Application / HR': 'people',\n  'Partnership / Business Development': 'sales',\n  'Spam / Vendor Solicitation': 'none',\n  'Billing / Finance': 'finance',\n  'Contract / Legal': 'legal',\n  'Misdirected / Wrong Recipient': 'none',\n  'Legal / Compliance': 'legal'\n};\nconst thresholds = {\n  __default: { autoReply: 0.82, humanReview: 0.68, minEvidenceItems: 2, minTopEvidenceScore: 0.74 },\n  'Setup Question': { autoReply: 0.82, humanReview: 0.68, minEvidenceItems: 2, minTopEvidenceScore: 0.74 },\n  'Security Question': { autoReply: 0.88, humanReview: 0.76, minEvidenceItems: 2, minTopEvidenceScore: 0.8 },\n  'Pricing Question': { autoReply: 0.86, humanReview: 0.72, minEvidenceItems: 1, minTopEvidenceScore: 0.76 },\n  'Spam / Vendor Solicitation': { autoReply: 0.9, humanReview: 0.7, minEvidenceItems: 0, minTopEvidenceScore: 0 },\n  'Misdirected / Wrong Recipient': { autoReply: 0.9, humanReview: 0.7, minEvidenceItems: 0, minTopEvidenceScore: 0 }\n};\nconst blockedAutoReplyCategories = new Set(['Job Application / HR', 'Partnership / Business Development', 'Billing / Finance', 'Contract / Legal', 'Legal / Compliance']);\nconst reviewRiskTags = new Set(['legal', 'security', 'compliance', 'pricing_negotiation', 'billing_dispute', 'unknown_policy_gap', 'contract_request', 'incident_report']);\nconst category = (parsed.category ?? $json.retrieval_primary_category ?? 'Setup Question').toString().trim() || 'Setup Question';\nconst categoryCandidates = asCandidateArray(parsed.category_candidates).sort((left, right) => right.score - left.score).slice(0, 3);\nif (!categoryCandidates.some((candidate) => candidate.label === category)) {\n  categoryCandidates.unshift({ label: category, score: clamp(parsed.confidence ?? $json.confidence_score ?? 0.5) });\n}\nconst trimmedCandidates = categoryCandidates.slice(0, 3);\nlet secondaryCategories = asStringArray(parsed.secondary_categories).filter((item) => item !== category).slice(0, 2);\nif (!secondaryCategories.length && trimmedCandidates.length > 1 && trimmedCandidates[1].score >= 0.45) {\n  secondaryCategories = [trimmedCandidates[1].label];\n}\nconst riskTags = [...new Set(asStringArray(parsed.risk_tags).concat($json.lexical_multi_intent ? ['multi_intent'] : []))];\nconst routeTeam = (parsed.route_team ?? defaultRouteByCategory[category] ?? 'support').toString();\nconst selectedThresholds = thresholds[category] ?? thresholds.__default;\nconst retrievalPrimaryCategory = ($json.retrieval_primary_category ?? '').toString().trim();\nconst retrievalAgreement = !retrievalPrimaryCategory || retrievalPrimaryCategory === category || secondaryCategories.includes(retrievalPrimaryCategory) || trimmedCandidates.some((candidate) => candidate.label === retrievalPrimaryCategory && candidate.score >= 0.45);\nconst candidateMargin = trimmedCandidates.length > 1 ? Math.max(0, trimmedCandidates[0].score - trimmedCandidates[1].score) : trimmedCandidates[0]?.score ?? 0;\nconst multiIntent = Boolean($json.lexical_multi_intent) || secondaryCategories.length > 0 || (trimmedCandidates.length > 1 && candidateMargin < 0.12) || riskTags.includes('multi_intent');\nlet categoryConfidence = Math.max(clamp(parsed.confidence ?? 0), clamp($json.confidence_score ?? 0));\ncategoryConfidence += Math.min(0.08, candidateMargin * 0.4);\nif (!retrievalAgreement) categoryConfidence -= 0.12;\nif (Boolean($json.novelty_detected)) categoryConfidence -= 0.1;\nif (Boolean($json.ambiguous_retrieval)) categoryConfidence -= 0.08;\nif (multiIntent) categoryConfidence -= 0.08;\ncategoryConfidence = clamp(categoryConfidence);\nconst escalationReasons = [];\nif (Boolean(parsed.needs_escalation)) escalationReasons.push('classifier_requested_escalation');\nif (blockedAutoReplyCategories.has(category)) escalationReasons.push('category_blocked_for_auto_reply');\nif (Boolean($json.is_high_risk)) escalationReasons.push('keyword_high_risk');\nif (riskTags.some((tag) => reviewRiskTags.has(tag))) escalationReasons.push('risk_tag_requires_review');\nif (!retrievalAgreement) escalationReasons.push('retrieval_classifier_disagreement');\nif (Boolean($json.novelty_detected)) escalationReasons.push('novel_case');\nif (Boolean($json.ambiguous_retrieval)) escalationReasons.push('ambiguous_retrieval');\nif (multiIntent) escalationReasons.push('multi_intent');\nif (categoryConfidence < selectedThresholds.autoReply) escalationReasons.push('below_auto_reply_threshold');\nif (categoryConfidence < selectedThresholds.humanReview) escalationReasons.push('low_category_confidence');\nconst replyQueryText = `${$json.query_text}\\nPredicted category: ${category}` + (secondaryCategories.length ? `\\nSecondary intents: ${secondaryCategories.join(', ')}` : '');\nreturn [{\n  ...$json,\n  category,\n  category_candidates: trimmedCandidates,\n  secondary_categories: secondaryCategories,\n  risk_tags: riskTags,\n  route_team: routeTeam,\n  needs_escalation: escalationReasons.length > 0,\n  confidence: categoryConfidence,\n  category_confidence: categoryConfidence,\n  auto_reply_threshold: selectedThresholds.autoReply,\n  human_review_threshold: selectedThresholds.humanReview,\n  min_kb_evidence_items: selectedThresholds.minEvidenceItems,\n  min_kb_top_score: selectedThresholds.minTopEvidenceScore,\n  retrieval_agreement: retrievalAgreement,\n  escalation_reasons: [...new Set(escalationReasons)],\n  reply_query_text: replyQueryText\n}];"
       },
       "id": "Code_ParseClassifier",
       "name": "Parse Classifier",
@@ -289,7 +289,7 @@
           "conditions": [
             {
               "id": "needs-review",
-              "leftValue": "={{$json.needs_escalation || $json.confidence < 0.78}}",
+              "leftValue": "={{$json.needs_escalation}}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -334,7 +334,7 @@
         "url": "={{$env.VECTOR_SEARCH_URL}}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { namespace: 'kb_policy', query_text: $json.query_text, top_k: 4, include_metadata: true } }}",
+        "jsonBody": "={{ { namespace: 'kb_policy', query_text: $json.reply_query_text ?? $json.query_text, top_k: 4, include_metadata: true } }}",
         "options": {
           "timeout": 30000
         }
@@ -353,11 +353,57 @@
     },
     {
       "parameters": {
+        "jsCode": "const evidence = Array.isArray($json.matches ?? $json.data) ? ($json.matches ?? $json.data) : [];\nconst toNumber = (value, fallback = 0) => {\n  const numeric = Number(value);\n  return Number.isFinite(numeric) ? numeric : fallback;\n};\nconst clamp = (value) => Math.max(0, Math.min(1, Number(toNumber(value).toFixed(4))));\nconst topEvidenceScore = toNumber(evidence?.[0]?.score ?? evidence?.[0]?.similarity ?? evidence?.[0]?.rerank_score);\nconst evidenceCount = evidence.length;\nconst minEvidenceItems = Math.max(0, Math.trunc(toNumber($json.min_kb_evidence_items, 2)));\nconst minTopEvidenceScore = clamp($json.min_kb_top_score ?? 0.72);\nconst evidenceConfidence = evidenceCount === 0 ? 0 : clamp((0.75 * topEvidenceScore) + (0.25 * (Math.min(evidenceCount, 3) / 3)));\nconst escalationReasons = Array.isArray($json.escalation_reasons) ? [...$json.escalation_reasons] : [];\nconst evidenceInsufficient = evidenceCount < minEvidenceItems || topEvidenceScore < minTopEvidenceScore;\nif (evidenceInsufficient) escalationReasons.push('insufficient_kb_evidence');\nreturn [{\n  ...$json,\n  kb_matches: evidence.slice(0, 4),\n  kb_evidence_count: evidenceCount,\n  kb_top_score: clamp(topEvidenceScore),\n  evidence_confidence: evidenceConfidence,\n  needs_escalation: Boolean($json.needs_escalation) || evidenceInsufficient,\n  escalation_reasons: [...new Set(escalationReasons)],\n  reply_strategy: evidenceInsufficient ? 'acknowledge_and_escalate' : 'grounded_reply'\n}];"
+      },
+      "id": "Code_AssessKbEvidence",
+      "name": "Assess KB Evidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "kb-needs-review",
+              "leftValue": "={{$json.needs_escalation}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "If_KbReview",
+      "name": "KB Requires Review?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2020,
+        540
+      ]
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "={{$env.LLM_REPLY_URL}}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { model: 'gpt-4.1-mini', input: { system: 'Draft grounded reply using evidence only', email: { from: $json.from, subject: $json.subject, body: $json.body }, category: $json.category, evidence: $json.matches ?? $json.data ?? [] } } }}",
+        "jsonBody": "={{ { model: 'gpt-4.1-mini', input: { system: 'Draft grounded reply using evidence only. Return JSON with draft_reply, used_evidence_ids, and grounding_ok. If reply_strategy is acknowledge_and_escalate or the evidence cannot support every material claim, write a short acknowledgment, state that the request is being routed to the right team, and set grounding_ok to false.', email: { from: $json.from, subject: $json.subject, body: $json.body }, category: $json.category, secondary_categories: $json.secondary_categories ?? [], risk_tags: $json.risk_tags ?? [], reply_strategy: $json.reply_strategy ?? 'grounded_reply', evidence: $json.kb_matches ?? $json.matches ?? $json.data ?? [] } } }}",
         "options": {
           "timeout": 45000
         }
@@ -367,8 +413,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1780,
-        540
+        2260,
+        660
       ],
       "retryOnFail": true,
       "maxTries": 2,
@@ -376,20 +422,20 @@
     },
     {
       "parameters": {
-        "jsCode": "const raw = $json.output ?? $json.response ?? $json;\nlet parsed = raw;\nif (typeof raw === 'string') {\n  try { parsed = JSON.parse(raw); } catch { parsed = {}; }\n}\nreturn [{\n  category: $json.category,\n  draft_reply: parsed.draft_reply ?? 'Thanks for your email. We are routing your request to the right team.',\n  confidence: $json.confidence ?? $json.confidence_score ?? 0.5,\n  needs_escalation: Boolean($json.needs_escalation),\n  route_team: $json.route_team ?? 'support',\n  evidence_refs: parsed.used_evidence_ids ?? []\n}];"
+        "jsCode": "const raw = $json.output ?? $json.response ?? $json;\nlet parsed = raw;\nif (typeof raw === 'string') {\n  try { parsed = JSON.parse(raw); } catch { parsed = {}; }\n}\nconst asStringArray = (value) => Array.isArray(value) ? value.map((item) => item.toString()) : [];\nconst evidenceIds = asStringArray(parsed.used_evidence_ids);\nconst fallbackEvidenceIds = Array.isArray($json.kb_matches)\n  ? $json.kb_matches.slice(0, 2).map((match, index) => (match?.id ?? match?.metadata?.id ?? `kb_${index + 1}`).toString())\n  : [];\nconst escalationReasons = Array.isArray($json.escalation_reasons) ? [...$json.escalation_reasons] : [];\nconst groundingOk = parsed.grounding_ok !== false;\nif (!groundingOk) escalationReasons.push('reply_grounding_not_confirmed');\nconst needsEscalation = Boolean($json.needs_escalation) || !groundingOk;\nreturn [{\n  category: $json.category,\n  draft_reply: parsed.draft_reply ?? (needsEscalation ? 'Thanks for your message. We are routing your request to the right team for confirmation.' : 'Thanks for your email. Here is the guidance we can provide based on our documentation.'),\n  confidence: $json.confidence ?? $json.category_confidence ?? $json.confidence_score ?? 0.5,\n  category_confidence: $json.category_confidence ?? $json.confidence ?? 0.5,\n  evidence_confidence: $json.evidence_confidence ?? 0,\n  needs_escalation: needsEscalation,\n  route_team: $json.route_team ?? 'support',\n  evidence_refs: evidenceIds.length ? evidenceIds : fallbackEvidenceIds,\n  secondary_categories: $json.secondary_categories ?? [],\n  risk_tags: $json.risk_tags ?? [],\n  escalation_reasons: [...new Set(escalationReasons)]\n}];"
       },
       "id": "Code_FormatMain",
       "name": "Format Main Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2020,
-        540
+        2500,
+        660
       ]
     },
     {
       "parameters": {
-        "jsCode": "return [{\n  category: $json.category ?? $json.fast_path_output?.category ?? 'Setup Question',\n  draft_reply: 'Thanks for your message. Your request has been escalated to a human reviewer for confirmation.',\n  confidence: $json.confidence ?? $json.confidence_score ?? 0.5,\n  needs_escalation: true,\n  route_team: $json.route_team ?? 'support',\n  evidence_refs: ['human_review_queue']\n}];"
+        "jsCode": "return [{\n  category: $json.category ?? $json.fast_path_output?.category ?? 'Setup Question',\n  draft_reply: 'Thanks for your message. Your request has been escalated to a human reviewer for confirmation.',\n  confidence: $json.confidence ?? $json.category_confidence ?? $json.confidence_score ?? 0.5,\n  category_confidence: $json.category_confidence ?? $json.confidence ?? $json.confidence_score ?? 0.5,\n  evidence_confidence: $json.evidence_confidence ?? 0,\n  needs_escalation: true,\n  route_team: $json.route_team ?? 'support',\n  evidence_refs: ['human_review_queue'],\n  secondary_categories: $json.secondary_categories ?? [],\n  risk_tags: $json.risk_tags ?? [],\n  escalation_reasons: $json.escalation_reasons ?? ['human_review_queue']\n}];"
       },
       "id": "Code_FormatEscalation",
       "name": "Format Escalation Output",
@@ -629,6 +675,35 @@
     },
     "Retrieve KB": {
       "main": [
+        [
+          {
+            "node": "Assess KB Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assess KB Evidence": {
+      "main": [
+        [
+          {
+            "node": "KB Requires Review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "KB Requires Review?": {
+      "main": [
+        [
+          {
+            "node": "Queue Human Review",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "LLM Reply Draft",

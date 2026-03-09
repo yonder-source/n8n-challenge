@@ -15,6 +15,14 @@
 
 ## Entries
 
+### [2026-03-09] 採用三段 gate 與類別化閾值來處理 unseen email
+- 背景：官方會在提交後用未見過的新郵件情境直接呼叫 production webhook；原本只有 retrieval-based confidence 與單一全域閾值，對 distribution shift 防禦不足。
+- 決策：自動回覆改為同時檢查 `category confidence`、`risk / disagreement gate`、`KB evidence sufficiency`；並針對不同 category 使用不同 auto-reply / review thresholds。
+- 原因：未知案例最常失手的不是單純相似度低，而是多意圖、檢索與分類器不一致、或文件證據其實不足卻硬答。
+- 影響：整體流程會更保守，人工審核量可能上升，但可顯著降低 hallucination、誤分類後誤答、與文件外回答的風險。
+- 替代方案：延用單一公式與全域閾值（不採用，對 unseen case 的防禦面不夠）。
+- 狀態：Accepted
+
 ### [2026-03-09] 以官方 challenge brief 作為交付範圍與驗收基準
 - 背景：既有專案記憶偏重 workflow 架構、RAG 與資料治理，但缺少競賽官方對 deliverables、評分方式與提交後驗證流程的摘要。
 - 決策：後續設計、實作與驗證一律以官方 Notion challenge brief 與 Nexus Integrations case study 為準，交付物需覆蓋 email agent、evaluation system、production webhook URL、workflow JSON export 與 60 秒 demo。

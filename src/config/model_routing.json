@@ -34,10 +34,22 @@
       "contract",
       "legal",
       "security",
-      "encryption"
+      "encryption",
+      "breach",
+      "vulnerability",
+      "pentest",
+      "penetration test",
+      "invoice dispute",
+      "refund",
+      "discount",
+      "enterprise plan",
+      "custom quote"
     ],
     "min_confidence_for_auto_reply": 0.78,
     "min_confidence_for_no_human_review": 0.82,
-    "escalation_band": [0.6, 0.78]
+    "escalation_band": [0.6, 0.78],
+    "novelty_signal_count_for_tier2": 2,
+    "min_retrieval_margin_for_confident_match": 0.05,
+    "min_sim_top1_for_confident_match": 0.72
   }
 }

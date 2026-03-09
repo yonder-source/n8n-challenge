@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "formula": {
     "score": "0.50*sim_top1 + 0.30*(sim_top1-sim_top2) + 0.20*rerank_score",
     "variables": {
@@ -12,17 +12,65 @@
       "margin_term": "0.30 on (sim_top1-sim_top2) penalizes ambiguous cases where two categories look similarly close.",
       "rerank_score": "0.20 adds extra quality control from reranking without overpowering base retrieval signals."
     },
-    "why_not_040_sim_top1": "Lowering sim_top1 from 0.50 to 0.40 makes the final score more sensitive to margin/rerank noise and can over-escalate clear matches. 0.50 is chosen as a balanced default before calibration.",
-    "calibration_note": "Run grid search on labeled validation data to tune weights and thresholds after collecting more reviewed emails."
+    "calibration_note": "The retrieval score is now only one part of the gate. Final auto-reply requires category confidence, evidence confidence, and risk checks to all pass."
   },
   "thresholds": {
-    "auto_reply": 0.78,
-    "human_review": 0.6,
-    "force_human_high_risk": true
+    "default": {
+      "auto_reply": 0.82,
+      "human_review": 0.68
+    },
+    "per_category": {
+      "Setup Question": {
+        "auto_reply": 0.82,
+        "human_review": 0.68,
+        "min_kb_evidence_items": 2,
+        "min_kb_top_score": 0.74
+      },
+      "Security Question": {
+        "auto_reply": 0.88,
+        "human_review": 0.76,
+        "min_kb_evidence_items": 2,
+        "min_kb_top_score": 0.8
+      },
+      "Pricing Question": {
+        "auto_reply": 0.86,
+        "human_review": 0.72,
+        "min_kb_evidence_items": 1,
+        "min_kb_top_score": 0.76
+      },
+      "Spam / Vendor Solicitation": {
+        "auto_reply": 0.9,
+        "human_review": 0.7,
+        "min_kb_evidence_items": 0,
+        "min_kb_top_score": 0
+      },
+      "Misdirected / Wrong Recipient": {
+        "auto_reply": 0.9,
+        "human_review": 0.7,
+        "min_kb_evidence_items": 0,
+        "min_kb_top_score": 0
+      }
+    }
+  },
+  "novelty_signals": {
+    "sim_top1_below": 0.72,
+    "margin_below": 0.05,
+    "rerank_below": 0.68,
+    "multi_category_topk": true,
+    "min_signals_for_novelty": 2
   },
   "guardrails": {
     "require_evidence_for_reply": true,
-    "min_evidence_items": 1,
-    "max_category_candidates": 3
+    "min_evidence_items": 2,
+    "max_category_candidates": 3,
+    "require_retrieval_classifier_agreement": true,
+    "escalate_on_multi_intent": true,
+    "blocked_auto_reply_categories": [
+      "Job Application / HR",
+      "Partnership / Business Development",
+      "Billing / Finance",
+      "Contract / Legal",
+      "Legal / Compliance"
+    ]
   }
 }

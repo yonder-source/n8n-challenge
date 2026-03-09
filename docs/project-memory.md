@@ -42,6 +42,12 @@
 - 已建立關鍵配置：`src/config/model_routing.json`、`src/config/confidence_policy.json`、`src/config/vector_indexes.json`。
 - 已完成英文設計文件：`docs/email_classifier_full_design_en.md`；中文 full design 已移除。
 - `README.md` 已更新且移除中文設計文件引用。
+- 已將 unseen-case 防禦 heuristic 落入主流程：
+  - retrieval novelty signals（低 `sim_top1`、小 margin、低 rerank、top-K 類別分裂）
+  - classifier / retrieval disagreement gate
+  - secondary intent 與 `risk_tags` 輔助升級
+  - per-category auto-reply / human-review thresholds
+  - KB evidence sufficiency gate（證據數量與 top score 不足時改走人工）
 
 ## 進行中
 - 將 workflow 中的佔位 HTTP 端點替換為實際 embedding/vector/LLM 供應商端點與憑證。
@@ -60,6 +66,7 @@
 - 採 Tier1/Tier2 多層模型路由以平衡成本與品質。
 - RAG 採 `examples` / `kb_policy` 雙索引隔離，禁止金標籤進入可檢索推論內容。
 - 信心分數採組合公式與雙閾值閘門，低信心導向人工審核。
+- 最終自動回覆判斷不只看 retrieval confidence，還必須同時通過 category confidence、risk gate 與 KB evidence sufficiency gate。
 - 回饋回寫僅接受 `approved` 審核結果，避免資料污染。
 
 ## 已知問題與避雷
@@ -69,6 +76,7 @@
 - 官方會在提交後用新案例測 production webhook；任何只對公開測資做模板化或記憶化的設計都有高風險失分。
 - 回覆若超出 Nexus 文件可支持的內容，寧可升級人工也不要硬答；錯誤自信回覆是官方明確打 0 的情境。
 - 需保留可對外展示的提交形態，不只是在本地跑 eval；最終要能提供 production webhook 與 demo 影片。
+- 新增的 per-category thresholds 與 novelty/evidence gate 目前仍屬 heuristic default，必須用更多人工覆核樣本做 calibration，否則可能過度升級。
 
 ## 來源摘要
 - 挑戰總覽：`https://n8n.notion.site/AI-Agents-with-Evals-30c5b6e0c94f818e9d62cb4894727ff9`
@@ -86,4 +94,4 @@
 
 ## 最近更新
 - 日期：2026-03-09
-- 內容：整理官方 Notion 挑戰總覽與案例題需求，補充競賽目標、評分規則、提交物、截止日與泛化/升級避雷，讓後續 agent 能直接理解這個 challenge 的成功條件。
+- 內容：整理官方 Notion 挑戰總覽與案例題需求，並將 unseen-case 防禦 heuristic 實作到 workflow/config/prompt：加入 novelty signals、類別化閾值、classifier/retrieval disagreement gate、multi-intent `risk_tags` 與 KB evidence sufficiency gate。
