@@ -15,6 +15,26 @@
 
 ## Entries
 
+### [2026-03-13] Code review 修正：structured-first workflow 安全性強化
+- 背景：對 structured-first 變更做 code review 後發現 5 項問題（1 bug、2 設計缺陷、2 中風險）。
+- 決策：一次性修復全部問題。
+- 修正項目：
+  1. Bug: `Assess Structured Facts` 未更新 `needs_escalation`，導致 structured-only 路徑可能跳過升級。
+  2. Design: structured-only 路徑繞過 `Grounding Requires Review?` gate；改為所有路徑都經過同一 review gate。
+  3. Design: 下游節點依賴 API echo 回傳 `context`；改用 `$('Parse Classifier').item.json` 與 `$('Assess Structured Facts').item.json` 直接引用上游。
+  4. Medium: `knowledgePolicies` 在 workflow 和 `structured_knowledge.json` 重複定義；加入 SYNC 註解。
+  5. Medium: structured lookup HTTP 失敗時 workflow 直接中斷；加入 `continueOnFail` 並在 assess 節點偵測 `$json.error` 做 graceful fallback。
+- 附帶修正：`reply_system_prompt.md` rule 2 措辭統一為 grounding evidence。
+- 狀態：Accepted
+
+### [2026-03-13] 採用 structured-first、RAG-limited 的知識路由
+- 背景：challenge 要求回覆必須 grounded 且對 unseen case 保守；若把 pricing、capability、routing policy 這類可結構化資料完全交給 RAG，chunking / metadata / recall 會增加黑箱性與追溯成本。
+- 決策：保留 `examples` 與 `kb_policy` 雙索引，但將主流程改為 `structured facts lookup -> 視需要才進 kb_policy retrieval`；其中 `examples` 只用於分類相似度，`structured facts` 優先承接 pricing / security capability 等可驗證事實，`kb_policy` 退為敘述性文件證據與 fallback。
+- 原因：這樣較符合官方「根據文件/官方資料作答，證據不足就升級人工」的評分邏輯，也更容易做 audit trail、source attribution 與失敗分析。
+- 影響：workflow 新增 structured lookup 節點與來源路由欄位，需額外維護 `src/config/structured_knowledge.json` 與 `STRUCTURED_LOOKUP_URL` 合約；文件與 prompt 也同步改為 hybrid grounding。
+- 替代方案：維持 retrieval-first、把大部分知識都放在 `kb_policy` 向量檢索（不採用，對 deterministic facts 的可追溯性與穩定性較差）。
+- 狀態：Accepted
+
 ### [2026-03-09] 採用三段 gate 與類別化閾值來處理 unseen email
 - 背景：官方會在提交後用未見過的新郵件情境直接呼叫 production webhook；原本只有 retrieval-based confidence 與單一全域閾值，對 distribution shift 防禦不足。
 - 決策：自動回覆改為同時檢查 `category confidence`、`risk / disagreement gate`、`KB evidence sufficiency`；並針對不同 category 使用不同 auto-reply / review thresholds。

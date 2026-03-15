@@ -1,8 +1,8 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "indexes": {
     "examples": {
-      "description": "Historical reviewed examples for intent similarity only",
+      "description": "Historical reviewed examples for similarity-based classification hints only",
       "embedding_model": "text-embedding-3-small",
       "metric": "cosine",
       "dimension": 1536,
@@ -26,7 +26,7 @@
       ]
     },
     "kb_policy": {
-      "description": "Official Nexus docs for grounded reply generation",
+      "description": "Official Nexus docs for narrative grounding when structured facts are insufficient or policy wording matters",
       "embedding_model": "text-embedding-3-small",
       "metric": "cosine",
       "dimension": 1536,
@@ -45,6 +45,7 @@
   "retrieval": {
     "top_k_dense": 8,
     "top_k_rerank": 3,
-    "min_similarity": 0.35
+    "min_similarity": 0.35,
+    "structured_lookup_before_kb": true
   }
 }

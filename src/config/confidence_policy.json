@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "formula": {
     "score": "0.50*sim_top1 + 0.30*(sim_top1-sim_top2) + 0.20*rerank_score",
     "variables": {
@@ -12,7 +12,7 @@
       "margin_term": "0.30 on (sim_top1-sim_top2) penalizes ambiguous cases where two categories look similarly close.",
       "rerank_score": "0.20 adds extra quality control from reranking without overpowering base retrieval signals."
     },
-    "calibration_note": "The retrieval score is now only one part of the gate. Final auto-reply requires category confidence, evidence confidence, and risk checks to all pass."
+    "calibration_note": "The retrieval score is now only one part of the gate. Final auto-reply requires category confidence, structured-fact coverage, document evidence sufficiency, and risk checks to all pass."
   },
   "thresholds": {
     "default": {
@@ -65,6 +65,11 @@
     "max_category_candidates": 3,
     "require_retrieval_classifier_agreement": true,
     "escalate_on_multi_intent": true,
+    "structured_lookup_before_kb": true,
+    "require_structured_facts_for_categories": [
+      "Pricing Question",
+      "Security Question"
+    ],
     "blocked_auto_reply_categories": [
       "Job Application / HR",
       "Partnership / Business Development",

@@ -3,14 +3,14 @@
 This repo contains a production-minded starter for the challenge:
 - email classifier workflow
 - confidence-gated escalation
-- RAG with leakage-safe indexing
+- structured-first grounding with leakage-safe retrieval
 - human-in-the-loop feedback loop
 - evaluation runner
 
 ## Structure
 - `workflows/`: n8n workflow blueprints
-- `src/config/`: routing, confidence, vector index configs
-- `src/mappings/`: taxonomy, actions, data cleaning, RAG schema
+- `src/config/`: routing, confidence, structured knowledge, vector index configs
+- `src/mappings/`: taxonomy, actions, data cleaning, retrieval schema
 - `src/prompts/`: classifier/reply prompts
 - `data/`: source dataset and prepared artifacts
 - `scripts/`: data prep and embedding request builders
@@ -30,6 +30,11 @@ This repo contains a production-minded starter for the challenge:
 Do not place `expected_category` or `expected_action` into retrievable inference index content.
 Use them only for evaluation and supervised learning artifacts.
 
+For this challenge, prefer structured facts for deterministic business data such as pricing, capability matrices, and routing policy.
+Use vector retrieval for:
+- example similarity during classification
+- official document evidence when structured facts are missing or insufficient
+
 ## Detailed Design
 - English (beginner-friendly) architecture and formula rationale: [docs/email_classifier_full_design_en.md](docs/email_classifier_full_design_en.md)
  
@@ -43,4 +48,4 @@ python scripts/prepare_dataset.py
 python scripts/build_embedding_requests.py
 ```
 
-If you want to run the workflows without real API keys, consider configuring mock endpoints for `EMBEDDING_URL`, `VECTOR_SEARCH_URL`, and `LLM_CLASSIFIER_URL` and set them in `src/config/.env.example` or your environment.
+If you want to run the workflows without real API keys, consider configuring mock endpoints for `STRUCTURED_LOOKUP_URL`, `EMBEDDING_URL`, `VECTOR_SEARCH_URL`, `LLM_CLASSIFIER_URL`, and `LLM_REPLY_URL` and set them in `src/config/.env.example` or your environment.

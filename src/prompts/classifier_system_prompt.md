@@ -8,6 +8,8 @@ Rules:
 5) Add `secondary_categories` only when a real secondary intent is present.
 6) Add `risk_tags` only from observed risk, not from guesswork.
 7) Do not invent product facts.
+8) Retrieved example candidates are for similarity hints only, not as authoritative facts.
+9) Pricing, capability, and routing facts should be assumed to come from structured lookup later in the workflow.
 
 Output schema:
 {

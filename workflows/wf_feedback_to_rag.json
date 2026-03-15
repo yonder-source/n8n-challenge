@@ -51,7 +51,7 @@
         "jsCode": "const subject = ($json.subject ?? '').toString().trim();\nconst body = ($json.body ?? '').toString().replace(/\\s+/g, ' ').trim().slice(0, 4000);\nconst from = ($json.from ?? '').toString().trim();\nconst senderDomain = from.includes('@') ? from.split('@')[1].toLowerCase() : 'unknown';\nreturn [{\n  ...$json,\n  vector_text: `Subject: ${subject}\\nBody: ${body}\\nSenderDomain: ${senderDomain}`,\n  vector_id: `reviewed::${$json.email_id ?? Date.now()}`,\n  sender_domain: senderDomain\n}];"
       },
       "id": "Code_BuildText",
-      "name": "Build Embedding Text",
+      "name": "Build Example Embedding Text",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -120,7 +120,7 @@
         }
       },
       "id": "Http_Upsert",
-      "name": "Upsert Vector",
+      "name": "Upsert Example Vector",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -133,10 +133,10 @@
     },
     {
       "parameters": {
-        "jsCode": "return [{ status: 'indexed', vector_id: $json.vector_id, namespace: 'examples' }];"
+        "jsCode": "return [{ status: 'example_indexed', vector_id: $json.vector_id, namespace: 'examples' }];"
       },
       "id": "Code_Audit",
-      "name": "Audit Log",
+      "name": "Audit Example Index",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -174,7 +174,7 @@
       "main": [
         [
           {
-            "node": "Build Embedding Text",
+            "node": "Build Example Embedding Text",
             "type": "main",
             "index": 0
           }
@@ -188,7 +188,7 @@
         ]
       ]
     },
-    "Build Embedding Text": {
+    "Build Example Embedding Text": {
       "main": [
         [
           {
@@ -214,18 +214,18 @@
       "main": [
         [
           {
-            "node": "Upsert Vector",
+            "node": "Upsert Example Vector",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Upsert Vector": {
+    "Upsert Example Vector": {
       "main": [
         [
           {
-            "node": "Audit Log",
+            "node": "Audit Example Index",
             "type": "main",
             "index": 0
           }

@@ -40,6 +40,7 @@
 	- `workflows/wf_eval_runner.json`
 	- `workflows/wf_error_handler.json`
 - 已建立關鍵配置：`src/config/model_routing.json`、`src/config/confidence_policy.json`、`src/config/vector_indexes.json`。
+- 已新增 `src/config/structured_knowledge.json`，定義 structured lookup contract 與 per-category source policy。
 - 已完成英文設計文件：`docs/email_classifier_full_design_en.md`；中文 full design 已移除。
 - `README.md` 已更新且移除中文設計文件引用。
 - 已將 unseen-case 防禦 heuristic 落入主流程：
@@ -48,15 +49,26 @@
   - secondary intent 與 `risk_tags` 輔助升級
   - per-category auto-reply / human-review thresholds
   - KB evidence sufficiency gate（證據數量與 top score 不足時改走人工）
+- 已將主流程調整為 structured-first、RAG-limited：
+  - `examples` 只用於分類相似度，不作為回覆事實來源
+  - `structured facts lookup` 優先承接 pricing / capability / routing 類資訊
+  - `kb_policy` 改為敘述性文件證據與 fallback
+- 已完成 code review 修正（共 5 項 + 1 措辭）：
+  - `Assess Structured Facts` 正確更新 `needs_escalation`
+  - structured-only 路徑改走 `Grounding Requires Review?` gate
+  - 下游節點改用 `$('Node').item.json` 引用上游，不再依賴 API echo
+  - `Http_StructuredLookup` 加入 `continueOnFail` 與 error fallback
+  - `Code_ParseClassifier` 加入 SYNC 註解標記 `knowledgePolicies` 同步需求
+  - `reply_system_prompt.md` 措辭統一為 grounding evidence
 
 ## 進行中
-- 將 workflow 中的佔位 HTTP 端點替換為實際 embedding/vector/LLM 供應商端點與憑證。
+- 將 workflow 中的佔位 HTTP 端點替換為實際 embedding/vector/LLM/structured lookup 供應商端點與憑證。
 - 以更大且人工覆核的驗證集校準 confidence 權重與閾值。
 - 將現有實作補齊為符合競賽提交格式的成品，包括 production webhook、匯出 JSON 與 demo 流程。
 
 ## 下一步
 - 在 n8n 匯入 workflows 並完成 credentials 綁定。
-- 建立 mock 或真實 API 端點的端到端測試，驗證分類、升級、回覆與錯誤流程。
+- 建立 mock 或真實 API 端點的端到端測試，驗證分類、structured lookup、文件 fallback、升級與錯誤流程。
 - 補齊依賴清單（例如 `requirements.txt`）與最小 CI 驗證（JSON/腳本 smoke test）。
 - 以官方會送「未知新案例」為前提，驗證 workflow 是否具備泛化與正確升級能力，而不是只對現有測資調參。
 - 準備最終提交資產：production webhook URL、workflow JSON export、60 秒 demo 影片。
@@ -65,6 +77,7 @@
 - 採雙軌策略：競賽可交付 MVP + 產品級安全機制（規則、信心閘門、HITL、錯誤處理）。
 - 採 Tier1/Tier2 多層模型路由以平衡成本與品質。
 - RAG 採 `examples` / `kb_policy` 雙索引隔離，禁止金標籤進入可檢索推論內容。
+- 知識來源採 structured-first、RAG-limited：可結構化事實先走 structured lookup，`kb_policy` 僅負責敘述性文件證據與 fallback。
 - 信心分數採組合公式與雙閾值閘門，低信心導向人工審核。
 - 最終自動回覆判斷不只看 retrieval confidence，還必須同時通過 category confidence、risk gate 與 KB evidence sufficiency gate。
 - 回饋回寫僅接受 `approved` 審核結果，避免資料污染。
@@ -75,6 +88,7 @@
 - 未完成 provider wiring 前，workflow 為可匯入骨架，非最終可上線版本。
 - 官方會在提交後用新案例測 production webhook；任何只對公開測資做模板化或記憶化的設計都有高風險失分。
 - 回覆若超出 Nexus 文件可支持的內容，寧可升級人工也不要硬答；錯誤自信回覆是官方明確打 0 的情境。
+- `structured facts lookup` 若沒有明確來源版本與 audit log，仍可能退化成另一個黑箱；正式 provider 需保留 `fact_id`、來源與生效時間。
 - 需保留可對外展示的提交形態，不只是在本地跑 eval；最終要能提供 production webhook 與 demo 影片。
 - 新增的 per-category thresholds 與 novelty/evidence gate 目前仍屬 heuristic default，必須用更多人工覆核樣本做 calibration，否則可能過度升級。
 
@@ -90,8 +104,13 @@
 - `docs/decision-log.md`
 - `workflows/wf_inbox_classifier.json`
 - `src/config/confidence_policy.json`
+- `src/config/structured_knowledge.json`
 - `scripts/prepare_dataset.py`
 
 ## 最近更新
+- 日期：2026-03-13
+- 內容：Code review 修正 structured-first workflow 的 5 項問題（needs_escalation bug、review gate bypass、context echo 依賴、error fallback、knowledge policy 同步），並統一 prompt 措辭。
+- 日期：2026-03-13
+- 內容：將知識路由調整為 structured-first、RAG-limited；新增 `src/config/structured_knowledge.json`，更新設計文件、runbook、prompt 與 workflow，讓 `structured facts lookup` 優先承接 pricing/security capability 類事實，`kb_policy` 改為敘述性文件 fallback。
 - 日期：2026-03-09
 - 內容：整理官方 Notion 挑戰總覽與案例題需求，並將 unseen-case 防禦 heuristic 實作到 workflow/config/prompt：加入 novelty signals、類別化閾值、classifier/retrieval disagreement gate、multi-intent `risk_tags` 與 KB evidence sufficiency gate。

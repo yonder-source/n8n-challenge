@@ -224,7 +224,7 @@
         "url": "={{$env.LLM_CLASSIFIER_URL}}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { model: 'gpt-4.1-mini', input: { system: 'Classify email into one primary Nexus category and return JSON only with category, up to 3 category_candidates, optional secondary_categories, risk_tags, route_team, needs_escalation, reasoning_short, and confidence. Prefer escalation for legal, security, compliance, pricing negotiation, billing disputes, mixed-intent emails, or unclear policy coverage.', email: { from: $json.from, subject: $json.subject, body: $json.body }, candidates: $json.retrieved_examples, retrieval_primary_category: $json.retrieval_primary_category, novelty_signals: $json.retrieval_novelty_signals ?? [] } } }}",
+        "jsonBody": "={{ { model: 'gpt-4.1-mini', input: { system: 'Classify email into one primary Nexus category and return JSON only with category, up to 3 category_candidates, optional secondary_categories, risk_tags, route_team, needs_escalation, reasoning_short, and confidence. Retrieved example candidates are similarity hints only, not authoritative facts. Prefer escalation for legal, security, compliance, pricing negotiation, billing disputes, mixed-intent emails, or unclear policy coverage.', email: { from: $json.from, subject: $json.subject, body: $json.body }, candidates: $json.retrieved_examples, retrieval_primary_category: $json.retrieval_primary_category, novelty_signals: $json.retrieval_novelty_signals ?? [] } } }}",
         "options": {
           "timeout": 45000
         }
@@ -247,7 +247,7 @@
         "url": "={{$env.LLM_CLASSIFIER_URL}}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { model: 'gpt-4.1', input: { system: 'Classify this potentially high-risk email into one primary Nexus category and return JSON only with category, up to 3 category_candidates, optional secondary_categories, risk_tags, route_team, needs_escalation, reasoning_short, and confidence. Be conservative: if the case is legal, security, compliance, contract, billing dispute, pricing negotiation, unknown-policy, or mixed-intent, prefer escalation.', email: { from: $json.from, subject: $json.subject, body: $json.body }, candidates: $json.retrieved_examples, retrieval_primary_category: $json.retrieval_primary_category, novelty_signals: $json.retrieval_novelty_signals ?? [] } } }}",
+        "jsonBody": "={{ { model: 'gpt-4.1', input: { system: 'Classify this potentially high-risk email into one primary Nexus category and return JSON only with category, up to 3 category_candidates, optional secondary_categories, risk_tags, route_team, needs_escalation, reasoning_short, and confidence. Retrieved example candidates are similarity hints only, not authoritative facts. Be conservative: if the case is legal, security, compliance, contract, billing dispute, pricing negotiation, unknown-policy, or mixed-intent, prefer escalation.', email: { from: $json.from, subject: $json.subject, body: $json.body }, candidates: $json.retrieved_examples, retrieval_primary_category: $json.retrieval_primary_category, novelty_signals: $json.retrieval_novelty_signals ?? [] } } }}",
         "options": {
           "timeout": 60000
         }
@@ -266,7 +266,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const raw = $json.output ?? $json.response ?? $json;\nlet parsed = raw;\nif (typeof raw === 'string') {\n  try {\n    parsed = JSON.parse(raw);\n  } catch {\n    parsed = {};\n  }\n}\nconst toNumber = (value, fallback = 0) => {\n  const numeric = Number(value);\n  return Number.isFinite(numeric) ? numeric : fallback;\n};\nconst clamp = (value) => Math.max(0, Math.min(1, Number(toNumber(value).toFixed(4))));\nconst asStringArray = (value) => Array.isArray(value) ? value.map((item) => item.toString().trim()).filter(Boolean) : [];\nconst asCandidateArray = (value) => Array.isArray(value)\n  ? value\n      .map((candidate) => ({\n        label: (candidate?.label ?? candidate?.category ?? '').toString().trim(),\n        score: clamp(candidate?.score ?? candidate?.confidence ?? 0)\n      }))\n      .filter((candidate) => candidate.label)\n  : [];\nconst defaultRouteByCategory = {\n  'Setup Question': 'support',\n  'Security Question': 'security',\n  'Pricing Question': 'sales',\n  'Job Application / HR': 'people',\n  'Partnership / Business Development': 'sales',\n  'Spam / Vendor Solicitation': 'none',\n  'Billing / Finance': 'finance',\n  'Contract / Legal': 'legal',\n  'Misdirected / Wrong Recipient': 'none',\n  'Legal / Compliance': 'legal'\n};\nconst thresholds = {\n  __default: { autoReply: 0.82, humanReview: 0.68, minEvidenceItems: 2, minTopEvidenceScore: 0.74 },\n  'Setup Question': { autoReply: 0.82, humanReview: 0.68, minEvidenceItems: 2, minTopEvidenceScore: 0.74 },\n  'Security Question': { autoReply: 0.88, humanReview: 0.76, minEvidenceItems: 2, minTopEvidenceScore: 0.8 },\n  'Pricing Question': { autoReply: 0.86, humanReview: 0.72, minEvidenceItems: 1, minTopEvidenceScore: 0.76 },\n  'Spam / Vendor Solicitation': { autoReply: 0.9, humanReview: 0.7, minEvidenceItems: 0, minTopEvidenceScore: 0 },\n  'Misdirected / Wrong Recipient': { autoReply: 0.9, humanReview: 0.7, minEvidenceItems: 0, minTopEvidenceScore: 0 }\n};\nconst blockedAutoReplyCategories = new Set(['Job Application / HR', 'Partnership / Business Development', 'Billing / Finance', 'Contract / Legal', 'Legal / Compliance']);\nconst reviewRiskTags = new Set(['legal', 'security', 'compliance', 'pricing_negotiation', 'billing_dispute', 'unknown_policy_gap', 'contract_request', 'incident_report']);\nconst category = (parsed.category ?? $json.retrieval_primary_category ?? 'Setup Question').toString().trim() || 'Setup Question';\nconst categoryCandidates = asCandidateArray(parsed.category_candidates).sort((left, right) => right.score - left.score).slice(0, 3);\nif (!categoryCandidates.some((candidate) => candidate.label === category)) {\n  categoryCandidates.unshift({ label: category, score: clamp(parsed.confidence ?? $json.confidence_score ?? 0.5) });\n}\nconst trimmedCandidates = categoryCandidates.slice(0, 3);\nlet secondaryCategories = asStringArray(parsed.secondary_categories).filter((item) => item !== category).slice(0, 2);\nif (!secondaryCategories.length && trimmedCandidates.length > 1 && trimmedCandidates[1].score >= 0.45) {\n  secondaryCategories = [trimmedCandidates[1].label];\n}\nconst riskTags = [...new Set(asStringArray(parsed.risk_tags).concat($json.lexical_multi_intent ? ['multi_intent'] : []))];\nconst routeTeam = (parsed.route_team ?? defaultRouteByCategory[category] ?? 'support').toString();\nconst selectedThresholds = thresholds[category] ?? thresholds.__default;\nconst retrievalPrimaryCategory = ($json.retrieval_primary_category ?? '').toString().trim();\nconst retrievalAgreement = !retrievalPrimaryCategory || retrievalPrimaryCategory === category || secondaryCategories.includes(retrievalPrimaryCategory) || trimmedCandidates.some((candidate) => candidate.label === retrievalPrimaryCategory && candidate.score >= 0.45);\nconst candidateMargin = trimmedCandidates.length > 1 ? Math.max(0, trimmedCandidates[0].score - trimmedCandidates[1].score) : trimmedCandidates[0]?.score ?? 0;\nconst multiIntent = Boolean($json.lexical_multi_intent) || secondaryCategories.length > 0 || (trimmedCandidates.length > 1 && candidateMargin < 0.12) || riskTags.includes('multi_intent');\nlet categoryConfidence = Math.max(clamp(parsed.confidence ?? 0), clamp($json.confidence_score ?? 0));\ncategoryConfidence += Math.min(0.08, candidateMargin * 0.4);\nif (!retrievalAgreement) categoryConfidence -= 0.12;\nif (Boolean($json.novelty_detected)) categoryConfidence -= 0.1;\nif (Boolean($json.ambiguous_retrieval)) categoryConfidence -= 0.08;\nif (multiIntent) categoryConfidence -= 0.08;\ncategoryConfidence = clamp(categoryConfidence);\nconst escalationReasons = [];\nif (Boolean(parsed.needs_escalation)) escalationReasons.push('classifier_requested_escalation');\nif (blockedAutoReplyCategories.has(category)) escalationReasons.push('category_blocked_for_auto_reply');\nif (Boolean($json.is_high_risk)) escalationReasons.push('keyword_high_risk');\nif (riskTags.some((tag) => reviewRiskTags.has(tag))) escalationReasons.push('risk_tag_requires_review');\nif (!retrievalAgreement) escalationReasons.push('retrieval_classifier_disagreement');\nif (Boolean($json.novelty_detected)) escalationReasons.push('novel_case');\nif (Boolean($json.ambiguous_retrieval)) escalationReasons.push('ambiguous_retrieval');\nif (multiIntent) escalationReasons.push('multi_intent');\nif (categoryConfidence < selectedThresholds.autoReply) escalationReasons.push('below_auto_reply_threshold');\nif (categoryConfidence < selectedThresholds.humanReview) escalationReasons.push('low_category_confidence');\nconst replyQueryText = `${$json.query_text}\\nPredicted category: ${category}` + (secondaryCategories.length ? `\\nSecondary intents: ${secondaryCategories.join(', ')}` : '');\nreturn [{\n  ...$json,\n  category,\n  category_candidates: trimmedCandidates,\n  secondary_categories: secondaryCategories,\n  risk_tags: riskTags,\n  route_team: routeTeam,\n  needs_escalation: escalationReasons.length > 0,\n  confidence: categoryConfidence,\n  category_confidence: categoryConfidence,\n  auto_reply_threshold: selectedThresholds.autoReply,\n  human_review_threshold: selectedThresholds.humanReview,\n  min_kb_evidence_items: selectedThresholds.minEvidenceItems,\n  min_kb_top_score: selectedThresholds.minTopEvidenceScore,\n  retrieval_agreement: retrievalAgreement,\n  escalation_reasons: [...new Set(escalationReasons)],\n  reply_query_text: replyQueryText\n}];"
+        "jsCode": "const raw = $json.output ?? $json.response ?? $json;\nlet parsed = raw;\nif (typeof raw === 'string') {\n  try {\n    parsed = JSON.parse(raw);\n  } catch {\n    parsed = {};\n  }\n}\nconst toNumber = (value, fallback = 0) => {\n  const numeric = Number(value);\n  return Number.isFinite(numeric) ? numeric : fallback;\n};\nconst clamp = (value) => Math.max(0, Math.min(1, Number(toNumber(value).toFixed(4))));\nconst asStringArray = (value) => Array.isArray(value) ? value.map((item) => item.toString().trim()).filter(Boolean) : [];\nconst asCandidateArray = (value) => Array.isArray(value)\n  ? value\n      .map((candidate) => ({\n        label: (candidate?.label ?? candidate?.category ?? '').toString().trim(),\n        score: clamp(candidate?.score ?? candidate?.confidence ?? 0)\n      }))\n      .filter((candidate) => candidate.label)\n  : [];\nconst defaultRouteByCategory = {\n  'Setup Question': 'support',\n  'Security Question': 'security',\n  'Pricing Question': 'sales',\n  'Job Application / HR': 'people',\n  'Partnership / Business Development': 'sales',\n  'Spam / Vendor Solicitation': 'none',\n  'Billing / Finance': 'finance',\n  'Contract / Legal': 'legal',\n  'Misdirected / Wrong Recipient': 'none',\n  'Legal / Compliance': 'legal'\n};\nconst thresholds = {\n  __default: { autoReply: 0.82, humanReview: 0.68, minEvidenceItems: 2, minTopEvidenceScore: 0.74 },\n  'Setup Question': { autoReply: 0.82, humanReview: 0.68, minEvidenceItems: 2, minTopEvidenceScore: 0.74 },\n  'Security Question': { autoReply: 0.88, humanReview: 0.76, minEvidenceItems: 2, minTopEvidenceScore: 0.8 },\n  'Pricing Question': { autoReply: 0.86, humanReview: 0.72, minEvidenceItems: 1, minTopEvidenceScore: 0.76 },\n  'Spam / Vendor Solicitation': { autoReply: 0.9, humanReview: 0.7, minEvidenceItems: 0, minTopEvidenceScore: 0 },\n  'Misdirected / Wrong Recipient': { autoReply: 0.9, humanReview: 0.7, minEvidenceItems: 0, minTopEvidenceScore: 0 }\n};\n/* SYNC: knowledgePolicies must stay in sync with src/config/structured_knowledge.json category_policies */\nconst knowledgePolicies = {\n  __default: { sourceMode: 'hybrid', requiresStructuredFacts: false, requiresKbLookup: true, requiredFactSets: [] },\n  'Setup Question': { sourceMode: 'hybrid', requiresStructuredFacts: false, requiresKbLookup: true, requiredFactSets: ['integration_catalog', 'setup_prerequisites'] },\n  'Security Question': { sourceMode: 'structured_first', requiresStructuredFacts: true, requiresKbLookup: true, requiredFactSets: ['security_capability_matrix', 'trust_policy_register', 'security_contact_policy'] },\n  'Pricing Question': { sourceMode: 'structured_first', requiresStructuredFacts: true, requiresKbLookup: false, requiredFactSets: ['plan_catalog', 'pricing_policy', 'sales_handoff_policy'] },\n  'Job Application / HR': { sourceMode: 'review_only', requiresStructuredFacts: false, requiresKbLookup: false, requiredFactSets: [] },\n  'Partnership / Business Development': { sourceMode: 'review_only', requiresStructuredFacts: false, requiresKbLookup: false, requiredFactSets: [] },\n  'Spam / Vendor Solicitation': { sourceMode: 'no_lookup', requiresStructuredFacts: false, requiresKbLookup: false, requiredFactSets: [] },\n  'Billing / Finance': { sourceMode: 'review_only', requiresStructuredFacts: false, requiresKbLookup: false, requiredFactSets: [] },\n  'Contract / Legal': { sourceMode: 'review_only', requiresStructuredFacts: false, requiresKbLookup: false, requiredFactSets: [] },\n  'Misdirected / Wrong Recipient': { sourceMode: 'no_lookup', requiresStructuredFacts: false, requiresKbLookup: false, requiredFactSets: [] },\n  'Legal / Compliance': { sourceMode: 'review_only', requiresStructuredFacts: false, requiresKbLookup: false, requiredFactSets: [] }\n};\nconst blockedAutoReplyCategories = new Set(['Job Application / HR', 'Partnership / Business Development', 'Billing / Finance', 'Contract / Legal', 'Legal / Compliance']);\nconst reviewRiskTags = new Set(['legal', 'security', 'compliance', 'pricing_negotiation', 'billing_dispute', 'unknown_policy_gap', 'contract_request', 'incident_report']);\nconst category = (parsed.category ?? $json.retrieval_primary_category ?? 'Setup Question').toString().trim() || 'Setup Question';\nconst categoryCandidates = asCandidateArray(parsed.category_candidates).sort((left, right) => right.score - left.score).slice(0, 3);\nif (!categoryCandidates.some((candidate) => candidate.label === category)) {\n  categoryCandidates.unshift({ label: category, score: clamp(parsed.confidence ?? $json.confidence_score ?? 0.5) });\n}\nconst trimmedCandidates = categoryCandidates.slice(0, 3);\nlet secondaryCategories = asStringArray(parsed.secondary_categories).filter((item) => item !== category).slice(0, 2);\nif (!secondaryCategories.length && trimmedCandidates.length > 1 && trimmedCandidates[1].score >= 0.45) {\n  secondaryCategories = [trimmedCandidates[1].label];\n}\nconst riskTags = [...new Set(asStringArray(parsed.risk_tags).concat($json.lexical_multi_intent ? ['multi_intent'] : []))];\nconst routeTeam = (parsed.route_team ?? defaultRouteByCategory[category] ?? 'support').toString();\nconst selectedThresholds = thresholds[category] ?? thresholds.__default;\nconst selectedKnowledgePolicy = knowledgePolicies[category] ?? knowledgePolicies.__default;\nconst retrievalPrimaryCategory = ($json.retrieval_primary_category ?? '').toString().trim();\nconst retrievalAgreement = !retrievalPrimaryCategory || retrievalPrimaryCategory === category || secondaryCategories.includes(retrievalPrimaryCategory) || trimmedCandidates.some((candidate) => candidate.label === retrievalPrimaryCategory && candidate.score >= 0.45);\nconst candidateMargin = trimmedCandidates.length > 1 ? Math.max(0, trimmedCandidates[0].score - trimmedCandidates[1].score) : trimmedCandidates[0]?.score ?? 0;\nconst multiIntent = Boolean($json.lexical_multi_intent) || secondaryCategories.length > 0 || (trimmedCandidates.length > 1 && candidateMargin < 0.12) || riskTags.includes('multi_intent');\nlet categoryConfidence = Math.max(clamp(parsed.confidence ?? 0), clamp($json.confidence_score ?? 0));\ncategoryConfidence += Math.min(0.08, candidateMargin * 0.4);\nif (!retrievalAgreement) categoryConfidence -= 0.12;\nif (Boolean($json.novelty_detected)) categoryConfidence -= 0.1;\nif (Boolean($json.ambiguous_retrieval)) categoryConfidence -= 0.08;\nif (multiIntent) categoryConfidence -= 0.08;\ncategoryConfidence = clamp(categoryConfidence);\nconst escalationReasons = [];\nif (Boolean(parsed.needs_escalation)) escalationReasons.push('classifier_requested_escalation');\nif (blockedAutoReplyCategories.has(category)) escalationReasons.push('category_blocked_for_auto_reply');\nif (Boolean($json.is_high_risk)) escalationReasons.push('keyword_high_risk');\nif (riskTags.some((tag) => reviewRiskTags.has(tag))) escalationReasons.push('risk_tag_requires_review');\nif (!retrievalAgreement) escalationReasons.push('retrieval_classifier_disagreement');\nif (Boolean($json.novelty_detected)) escalationReasons.push('novel_case');\nif (Boolean($json.ambiguous_retrieval)) escalationReasons.push('ambiguous_retrieval');\nif (multiIntent) escalationReasons.push('multi_intent');\nif (categoryConfidence < selectedThresholds.autoReply) escalationReasons.push('below_auto_reply_threshold');\nif (categoryConfidence < selectedThresholds.humanReview) escalationReasons.push('low_category_confidence');\nconst replyQueryText = `${$json.query_text}\\nPredicted category: ${category}` + (secondaryCategories.length ? `\\nSecondary intents: ${secondaryCategories.join(', ')}` : '');\nreturn [{\n  ...$json,\n  category,\n  category_candidates: trimmedCandidates,\n  secondary_categories: secondaryCategories,\n  risk_tags: riskTags,\n  route_team: routeTeam,\n  needs_escalation: escalationReasons.length > 0,\n  confidence: categoryConfidence,\n  category_confidence: categoryConfidence,\n  auto_reply_threshold: selectedThresholds.autoReply,\n  human_review_threshold: selectedThresholds.humanReview,\n  min_kb_evidence_items: selectedThresholds.minEvidenceItems,\n  min_kb_top_score: selectedThresholds.minTopEvidenceScore,\n  retrieval_agreement: retrievalAgreement,\n  knowledge_source_preference: selectedKnowledgePolicy.sourceMode,\n  requires_structured_facts: selectedKnowledgePolicy.requiresStructuredFacts,\n  requires_kb_lookup: selectedKnowledgePolicy.requiresKbLookup,\n  required_fact_sets: selectedKnowledgePolicy.requiredFactSets,\n  grounding_evidence: [],\n  escalation_reasons: [...new Set(escalationReasons)],\n  reply_query_text: replyQueryText\n}];"
       },
       "id": "Code_ParseClassifier",
       "name": "Parse Classifier",
@@ -331,16 +331,16 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.VECTOR_SEARCH_URL}}",
+        "url": "={{$env.STRUCTURED_LOOKUP_URL}}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { namespace: 'kb_policy', query_text: $json.reply_query_text ?? $json.query_text, top_k: 4, include_metadata: true } }}",
+        "jsonBody": "={{ { category: $json.category, secondary_categories: $json.secondary_categories ?? [], risk_tags: $json.risk_tags ?? [], route_team: $json.route_team, source_mode: $json.knowledge_source_preference ?? 'hybrid', required_fact_sets: $json.required_fact_sets ?? [], email: { from: $json.from, subject: $json.subject, body: $json.body } } }}",
         "options": {
           "timeout": 30000
         }
       },
-      "id": "Http_RetrieveKB",
-      "name": "Retrieve KB",
+      "id": "Http_StructuredLookup",
+      "name": "Lookup Structured Facts",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -349,18 +349,88 @@
       ],
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 2000
+      "waitBetweenTries": 1500,
+      "continueOnFail": true
     },
     {
       "parameters": {
-        "jsCode": "const evidence = Array.isArray($json.matches ?? $json.data) ? ($json.matches ?? $json.data) : [];\nconst toNumber = (value, fallback = 0) => {\n  const numeric = Number(value);\n  return Number.isFinite(numeric) ? numeric : fallback;\n};\nconst clamp = (value) => Math.max(0, Math.min(1, Number(toNumber(value).toFixed(4))));\nconst topEvidenceScore = toNumber(evidence?.[0]?.score ?? evidence?.[0]?.similarity ?? evidence?.[0]?.rerank_score);\nconst evidenceCount = evidence.length;\nconst minEvidenceItems = Math.max(0, Math.trunc(toNumber($json.min_kb_evidence_items, 2)));\nconst minTopEvidenceScore = clamp($json.min_kb_top_score ?? 0.72);\nconst evidenceConfidence = evidenceCount === 0 ? 0 : clamp((0.75 * topEvidenceScore) + (0.25 * (Math.min(evidenceCount, 3) / 3)));\nconst escalationReasons = Array.isArray($json.escalation_reasons) ? [...$json.escalation_reasons] : [];\nconst evidenceInsufficient = evidenceCount < minEvidenceItems || topEvidenceScore < minTopEvidenceScore;\nif (evidenceInsufficient) escalationReasons.push('insufficient_kb_evidence');\nreturn [{\n  ...$json,\n  kb_matches: evidence.slice(0, 4),\n  kb_evidence_count: evidenceCount,\n  kb_top_score: clamp(topEvidenceScore),\n  evidence_confidence: evidenceConfidence,\n  needs_escalation: Boolean($json.needs_escalation) || evidenceInsufficient,\n  escalation_reasons: [...new Set(escalationReasons)],\n  reply_strategy: evidenceInsufficient ? 'acknowledge_and_escalate' : 'grounded_reply'\n}];"
+        "jsCode": "/* Upstream: Parse Classifier - do not depend on API response echo */\nconst base = $('Parse Classifier').item.json;\nconst isError = Boolean($json.error);\nconst response = isError ? {} : $json;\nconst rawFacts = isError ? [] : (Array.isArray(response.facts) ? response.facts : Array.isArray(response.data?.facts) ? response.data.facts : []);\nconst toNumber = (value, fallback = 0) => {\n  const numeric = Number(value);\n  return Number.isFinite(numeric) ? numeric : fallback;\n};\nconst clamp = (value) => Math.max(0, Math.min(1, Number(toNumber(value).toFixed(4))));\nconst requiredFactSets = Array.isArray(base.required_fact_sets) ? base.required_fact_sets : [];\nconst sourceMode = (base.knowledge_source_preference ?? 'hybrid').toString();\nconst coverage = clamp(response.coverage ?? response.data?.coverage ?? (rawFacts.length ? Math.min(1, rawFacts.length / Math.max(1, requiredFactSets.length || rawFacts.length)) : 0));\nconst answerable = Boolean(response.answerable ?? response.data?.answerable ?? rawFacts.length > 0);\nconst requiresDocumentRetrieval = Boolean(response.requires_document_retrieval ?? response.data?.requires_document_retrieval ?? base.requires_kb_lookup ?? false);\nconst structuredEvidence = rawFacts.slice(0, 5).map((fact, index) => ({\n  id: (fact?.id ?? `structured_${index + 1}`).toString(),\n  type: 'structured_fact',\n  title: (fact?.title ?? fact?.name ?? `Structured fact ${index + 1}`).toString(),\n  content: (fact?.value ?? fact?.content ?? JSON.stringify(fact)).toString(),\n  source_ref: (fact?.source_ref ?? fact?.source ?? 'structured_lookup').toString(),\n  score: clamp(fact?.confidence ?? coverage || 0.85)\n}));\nconst needsKbLookup = isError || (sourceMode !== 'no_lookup' && (requiresDocumentRetrieval || !answerable || (Boolean(base.requires_structured_facts) && structuredEvidence.length === 0)));\nconst escalationReasons = Array.isArray(base.escalation_reasons) ? [...base.escalation_reasons] : [];\nif (isError) escalationReasons.push('structured_lookup_failed');\nif (Boolean(base.requires_structured_facts) && structuredEvidence.length === 0) escalationReasons.push('missing_structured_facts');\nif (!answerable && sourceMode !== 'no_lookup') escalationReasons.push('structured_lookup_inconclusive');\nreturn [{\n  ...base,\n  structured_facts: structuredEvidence,\n  structured_fact_ids: structuredEvidence.map((fact) => fact.id),\n  structured_fact_coverage: coverage,\n  structured_answerable: answerable,\n  requires_kb_lookup: needsKbLookup,\n  evidence_confidence: structuredEvidence.length ? coverage : 0,\n  reply_strategy: !needsKbLookup && structuredEvidence.length ? 'structured_grounded_reply' : (base.reply_strategy ?? 'grounded_reply'),\n  grounding_evidence: structuredEvidence,\n  needs_escalation: escalationReasons.length > 0 || Boolean(base.needs_escalation),\n  escalation_reasons: [...new Set(escalationReasons)]\n}];"
       },
-      "id": "Code_AssessKbEvidence",
-      "name": "Assess KB Evidence",
+      "id": "Code_AssessStructuredFacts",
+      "name": "Assess Structured Facts",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         1780,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "needs-kb-after-structured",
+              "leftValue": "={{$json.requires_kb_lookup}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "If_StructuredNeedsKb",
+      "name": "Structured Needs KB?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2020,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.VECTOR_SEARCH_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { namespace: 'kb_policy', query_text: $json.reply_query_text ?? $json.query_text, top_k: 4, include_metadata: true, category: $json.category, structured_fact_ids: $json.structured_fact_ids ?? [] } }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "Http_RetrieveKB",
+      "name": "Retrieve Document Evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2260,
+        540
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "/* Upstream: Assess Structured Facts - do not depend on API response echo */\nconst upstream = $('Assess Structured Facts').item.json;\nconst documentMatches = Array.isArray($json.matches ?? $json.data) ? ($json.matches ?? $json.data) : [];\nconst structuredEvidence = Array.isArray(upstream.grounding_evidence) ? upstream.grounding_evidence : [];\nconst toNumber = (value, fallback = 0) => {\n  const numeric = Number(value);\n  return Number.isFinite(numeric) ? numeric : fallback;\n};\nconst clamp = (value) => Math.max(0, Math.min(1, Number(toNumber(value).toFixed(4))));\nconst normalizedDocumentEvidence = documentMatches.slice(0, 4).map((match, index) => ({\n  id: (match?.id ?? match?.metadata?.id ?? `kb_${index + 1}`).toString(),\n  type: 'document_chunk',\n  title: (match?.metadata?.title ?? match?.metadata?.section ?? `KB evidence ${index + 1}`).toString(),\n  content: (match?.text ?? match?.metadata?.text ?? match?.metadata?.excerpt ?? '').toString(),\n  source_ref: (match?.metadata?.source_url ?? match?.metadata?.source_ref ?? 'kb_policy').toString(),\n  score: clamp(match?.score ?? match?.similarity ?? match?.rerank_score)\n}));\nconst topDocScore = toNumber(documentMatches?.[0]?.score ?? documentMatches?.[0]?.similarity ?? documentMatches?.[0]?.rerank_score);\nconst topEvidenceScore = Math.max(clamp(upstream.structured_fact_coverage ?? 0), clamp(topDocScore));\nconst combinedEvidence = structuredEvidence.concat(normalizedDocumentEvidence);\nconst evidenceCount = combinedEvidence.length;\nconst minEvidenceItems = Math.max(0, Math.trunc(toNumber(upstream.min_kb_evidence_items, 2)));\nconst minTopEvidenceScore = clamp(upstream.min_kb_top_score ?? 0.72);\nconst evidenceConfidence = evidenceCount === 0 ? 0 : clamp((0.75 * topEvidenceScore) + (0.25 * (Math.min(evidenceCount, 3) / 3)));\nconst escalationReasons = Array.isArray(upstream.escalation_reasons) ? [...upstream.escalation_reasons] : [];\nconst evidenceInsufficient = evidenceCount < minEvidenceItems || topEvidenceScore < minTopEvidenceScore;\nif (evidenceInsufficient) escalationReasons.push('insufficient_grounding_evidence');\nreturn [{\n  ...upstream,\n  kb_matches: normalizedDocumentEvidence,\n  kb_evidence_count: normalizedDocumentEvidence.length,\n  kb_top_score: clamp(topDocScore),\n  evidence_confidence: evidenceConfidence,\n  grounding_evidence: combinedEvidence.slice(0, 6),\n  needs_escalation: Boolean(upstream.needs_escalation) || evidenceInsufficient,\n  escalation_reasons: [...new Set(escalationReasons)],\n  reply_strategy: evidenceInsufficient ? 'acknowledge_and_escalate' : (structuredEvidence.length ? 'hybrid_grounded_reply' : 'document_grounded_reply')\n}];"
+      },
+      "id": "Code_AssessKbEvidence",
+      "name": "Assess Grounding Evidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2500,
         540
       ]
     },
@@ -389,11 +459,11 @@
         "options": {}
       },
       "id": "If_KbReview",
-      "name": "KB Requires Review?",
+      "name": "Grounding Requires Review?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2020,
+        2740,
         540
       ]
     },
@@ -403,7 +473,7 @@
         "url": "={{$env.LLM_REPLY_URL}}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { model: 'gpt-4.1-mini', input: { system: 'Draft grounded reply using evidence only. Return JSON with draft_reply, used_evidence_ids, and grounding_ok. If reply_strategy is acknowledge_and_escalate or the evidence cannot support every material claim, write a short acknowledgment, state that the request is being routed to the right team, and set grounding_ok to false.', email: { from: $json.from, subject: $json.subject, body: $json.body }, category: $json.category, secondary_categories: $json.secondary_categories ?? [], risk_tags: $json.risk_tags ?? [], reply_strategy: $json.reply_strategy ?? 'grounded_reply', evidence: $json.kb_matches ?? $json.matches ?? $json.data ?? [] } } }}",
+        "jsonBody": "={{ { model: 'gpt-4.1-mini', input: { system: 'Draft grounded reply using provided grounding evidence only. Evidence may include structured facts and retrieved policy excerpts. Return JSON with draft_reply, used_evidence_ids, and grounding_ok. If reply_strategy is acknowledge_and_escalate or the evidence cannot support every material claim, write a short acknowledgment, state that the request is being routed to the right team, and set grounding_ok to false.', email: { from: $json.from, subject: $json.subject, body: $json.body }, category: $json.category, secondary_categories: $json.secondary_categories ?? [], risk_tags: $json.risk_tags ?? [], reply_strategy: $json.reply_strategy ?? 'grounded_reply', evidence: $json.grounding_evidence ?? $json.structured_facts ?? $json.kb_matches ?? $json.matches ?? $json.data ?? [] } } }}",
         "options": {
           "timeout": 45000
         }
@@ -413,7 +483,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2260,
+        2980,
         660
       ],
       "retryOnFail": true,
@@ -422,14 +492,14 @@
     },
     {
       "parameters": {
-        "jsCode": "const raw = $json.output ?? $json.response ?? $json;\nlet parsed = raw;\nif (typeof raw === 'string') {\n  try { parsed = JSON.parse(raw); } catch { parsed = {}; }\n}\nconst asStringArray = (value) => Array.isArray(value) ? value.map((item) => item.toString()) : [];\nconst evidenceIds = asStringArray(parsed.used_evidence_ids);\nconst fallbackEvidenceIds = Array.isArray($json.kb_matches)\n  ? $json.kb_matches.slice(0, 2).map((match, index) => (match?.id ?? match?.metadata?.id ?? `kb_${index + 1}`).toString())\n  : [];\nconst escalationReasons = Array.isArray($json.escalation_reasons) ? [...$json.escalation_reasons] : [];\nconst groundingOk = parsed.grounding_ok !== false;\nif (!groundingOk) escalationReasons.push('reply_grounding_not_confirmed');\nconst needsEscalation = Boolean($json.needs_escalation) || !groundingOk;\nreturn [{\n  category: $json.category,\n  draft_reply: parsed.draft_reply ?? (needsEscalation ? 'Thanks for your message. We are routing your request to the right team for confirmation.' : 'Thanks for your email. Here is the guidance we can provide based on our documentation.'),\n  confidence: $json.confidence ?? $json.category_confidence ?? $json.confidence_score ?? 0.5,\n  category_confidence: $json.category_confidence ?? $json.confidence ?? 0.5,\n  evidence_confidence: $json.evidence_confidence ?? 0,\n  needs_escalation: needsEscalation,\n  route_team: $json.route_team ?? 'support',\n  evidence_refs: evidenceIds.length ? evidenceIds : fallbackEvidenceIds,\n  secondary_categories: $json.secondary_categories ?? [],\n  risk_tags: $json.risk_tags ?? [],\n  escalation_reasons: [...new Set(escalationReasons)]\n}];"
+        "jsCode": "const raw = $json.output ?? $json.response ?? $json;\nlet parsed = raw;\nif (typeof raw === 'string') {\n  try { parsed = JSON.parse(raw); } catch { parsed = {}; }\n}\nconst asStringArray = (value) => Array.isArray(value) ? value.map((item) => item.toString()) : [];\nconst evidenceIds = asStringArray(parsed.used_evidence_ids);\nconst fallbackEvidenceIds = Array.isArray($json.grounding_evidence)\n  ? $json.grounding_evidence.slice(0, 3).map((evidence, index) => (evidence?.id ?? `evidence_${index + 1}`).toString())\n  : [];\nconst escalationReasons = Array.isArray($json.escalation_reasons) ? [...$json.escalation_reasons] : [];\nconst groundingOk = parsed.grounding_ok !== false;\nif (!groundingOk) escalationReasons.push('reply_grounding_not_confirmed');\nconst needsEscalation = Boolean($json.needs_escalation) || !groundingOk;\nreturn [{\n  category: $json.category,\n  draft_reply: parsed.draft_reply ?? (needsEscalation ? 'Thanks for your message. We are routing your request to the right team for confirmation.' : 'Thanks for your email. Here is the guidance we can provide based on our verified sources.'),\n  confidence: $json.confidence ?? $json.category_confidence ?? $json.confidence_score ?? 0.5,\n  category_confidence: $json.category_confidence ?? $json.confidence ?? 0.5,\n  evidence_confidence: $json.evidence_confidence ?? 0,\n  needs_escalation: needsEscalation,\n  route_team: $json.route_team ?? 'support',\n  evidence_refs: evidenceIds.length ? evidenceIds : fallbackEvidenceIds,\n  secondary_categories: $json.secondary_categories ?? [],\n  risk_tags: $json.risk_tags ?? [],\n  escalation_reasons: [...new Set(escalationReasons)]\n}];"
       },
       "id": "Code_FormatMain",
       "name": "Format Main Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2500,
+        3220,
         660
       ]
     },
@@ -655,7 +725,7 @@
         ],
         [
           {
-            "node": "Retrieve KB",
+            "node": "Lookup Structured Facts",
             "type": "main",
             "index": 0
           }
@@ -673,29 +743,69 @@
         ]
       ]
     },
-    "Retrieve KB": {
+    "Lookup Structured Facts": {
       "main": [
         [
           {
-            "node": "Assess KB Evidence",
+            "node": "Assess Structured Facts",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Assess KB Evidence": {
+    "Assess Structured Facts": {
       "main": [
         [
           {
-            "node": "KB Requires Review?",
+            "node": "Structured Needs KB?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "KB Requires Review?": {
+    "Structured Needs KB?": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Document Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Grounding Requires Review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Document Evidence": {
+      "main": [
+        [
+          {
+            "node": "Assess Grounding Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assess Grounding Evidence": {
+      "main": [
+        [
+          {
+            "node": "Grounding Requires Review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Grounding Requires Review?": {
       "main": [
         [
           {

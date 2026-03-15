@@ -1,0 +1,103 @@
+{
+  "version": "1.0.0",
+  "lookup_contract": {
+    "request_fields": [
+      "category",
+      "secondary_categories",
+      "risk_tags",
+      "route_team",
+      "required_fact_sets",
+      "email.from",
+      "email.subject",
+      "email.body"
+    ],
+    "response_fields": [
+      "facts",
+      "coverage",
+      "answerable",
+      "requires_document_retrieval",
+      "source_refs",
+      "as_of"
+    ],
+    "fact_shape": {
+      "id": "stable fact identifier",
+      "title": "short fact title",
+      "value": "grounded fact text or normalized field value",
+      "source_ref": "internal record or document reference",
+      "confidence": "0-1 score supplied by structured system"
+    }
+  },
+  "category_policies": {
+    "Setup Question": {
+      "source_mode": "hybrid",
+      "requires_structured_facts": false,
+      "requires_document_retrieval": true,
+      "required_fact_sets": [
+        "integration_catalog",
+        "setup_prerequisites"
+      ]
+    },
+    "Security Question": {
+      "source_mode": "structured_first",
+      "requires_structured_facts": true,
+      "requires_document_retrieval": true,
+      "required_fact_sets": [
+        "security_capability_matrix",
+        "trust_policy_register",
+        "security_contact_policy"
+      ]
+    },
+    "Pricing Question": {
+      "source_mode": "structured_first",
+      "requires_structured_facts": true,
+      "requires_document_retrieval": false,
+      "required_fact_sets": [
+        "plan_catalog",
+        "pricing_policy",
+        "sales_handoff_policy"
+      ]
+    },
+    "Job Application / HR": {
+      "source_mode": "review_only",
+      "requires_structured_facts": false,
+      "requires_document_retrieval": false,
+      "required_fact_sets": []
+    },
+    "Partnership / Business Development": {
+      "source_mode": "review_only",
+      "requires_structured_facts": false,
+      "requires_document_retrieval": false,
+      "required_fact_sets": []
+    },
+    "Spam / Vendor Solicitation": {
+      "source_mode": "no_lookup",
+      "requires_structured_facts": false,
+      "requires_document_retrieval": false,
+      "required_fact_sets": []
+    },
+    "Billing / Finance": {
+      "source_mode": "review_only",
+      "requires_structured_facts": false,
+      "requires_document_retrieval": false,
+      "required_fact_sets": []
+    },
+    "Contract / Legal": {
+      "source_mode": "review_only",
+      "requires_structured_facts": false,
+      "requires_document_retrieval": false,
+      "required_fact_sets": []
+    },
+    "Misdirected / Wrong Recipient": {
+      "source_mode": "no_lookup",
+      "requires_structured_facts": false,
+      "requires_document_retrieval": false,
+      "required_fact_sets": []
+    },
+    "Legal / Compliance": {
+      "source_mode": "review_only",
+      "requires_structured_facts": false,
+      "requires_document_retrieval": false,
+      "required_fact_sets": []
+    }
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "canonical_fields": [
     "email_id",
     "from_name",
@@ -15,6 +15,18 @@
     "body_clean",
     "sender_domain"
   ],
+  "document_retrieval_fields": [
+    "subject_clean",
+    "body_clean",
+    "sender_domain",
+    "predicted_category"
+  ],
+  "structured_lookup_fields": [
+    "predicted_category",
+    "secondary_categories",
+    "risk_tags",
+    "sender_domain"
+  ],
   "non_embedding_fields": [
     "expected_category",
     "expected_action"
@@ -22,6 +34,7 @@
   "metadata_fields": [
     "email_id",
     "source_type",
+    "source_mode",
     "split",
     "language",
     "sender_domain",

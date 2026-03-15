@@ -6,164 +6,170 @@ Incoming emails can vary widely:
 - Technical setup questions (Setup)
 - Security or legal questions (Security / Legal)
 - Pricing and commercial inquiries (Pricing / Partnership)
-- Emails that don't belong in support (Misdirected / Spam)
+- Emails that do not belong in support (Misdirected / Spam)
 
-Reading and routing everything manually is slow and costly. Sending everything to a single AI without safeguards risks misclassification, hallucination, and incorrect replies for high-risk cases.
+The challenge is not only classification accuracy. The system must also avoid hallucinations, stay grounded in official Nexus material, and escalate when evidence is weak.
 
 This system aims to:
-1) Classify each email into a category.
-2) Decide whether to auto-reply or escalate to a human.
-3) Ensure replies are grounded in verified knowledge (RAG).
-4) Use human-reviewed results to improve the system in a controlled way.
+1. Classify each email into a category.
+2. Decide whether to auto-reply or escalate to a human.
+3. Prefer structured facts for deterministic business data.
+4. Use document retrieval only when narrative evidence is needed.
+5. Feed only human-approved examples back into similarity memory.
 
 ---
 
 ## 2. System overview (four pipelines)
 
 1. Main classification pipeline: `wf_inbox_classifier`
-   - Receive → Clean → Fast-rule filter → Vector retrieval → LLM classification → Confidence gate → Auto-reply or human queue
+   - Receive -> Clean -> Fast-rule filter -> Example retrieval -> LLM classification -> Structured facts lookup -> Optional document retrieval -> Auto-reply or human queue
 
 2. Human review pipeline: `wf_human_review_queue`
    - Create review ticket for low-confidence or high-risk cases and notify reviewers
 
-3. Feedback-to-RAG pipeline: `wf_feedback_to_rag`
-   - Only human-approved examples are added back to the `examples` vector index
+3. Feedback-to-examples pipeline: `wf_feedback_to_rag`
+   - Only human-approved examples are added back to the `examples` similarity index
 
 4. Error handling pipeline: `wf_error_handler`
    - Centralized handling for timeouts, rate limits, and permanent failures with alerts
 
 ---
 
-## 3. Why a dual-index RAG (instead of one index)?
+## 3. Why a three-layer knowledge design?
 
-### 3.1 `examples` index (example similarity)
-- Purpose: help determine which category an incoming email most closely matches
+### 3.1 `examples` index (similarity only)
+- Purpose: provide category hints from historical reviewed emails
 - Stored content: `subject_clean + body_clean + sender_domain`
-- Do NOT store gold labels (`expected_category` / `expected_action`) in the retrievable text used for generation
+- Never use this index as the source of truth for reply facts
 
-### 3.2 `kb_policy` index (grounding for replies)
-- Purpose: provide authoritative knowledge and policies for drafting replies
-- Stored content: official product docs, security guidelines, pricing policy excerpts, and legal snippets
+### 3.2 Structured facts lookup (primary source for deterministic facts)
+- Purpose: answer questions that should come from stable records instead of chunked text
+- Typical content:
+  - pricing plans and handoff policy
+  - supported integrations / capability matrices
+  - security capability registry
+  - routing policy by category
+- Benefits:
+  - easier audit trail
+  - explicit request / response logs
+  - better traceability than relying on chunk recall alone
 
-### 3.3 Why separate indexes?
-- Prevents label leakage (the model shouldn't copy gold labels from examples as answers)
-- Avoids inflated offline scores that don't generalize to unseen cases
-- Enables traceable, evidence-backed replies and reduces hallucination risk
+### 3.3 `kb_policy` index (document evidence fallback)
+- Purpose: retrieve official document excerpts when wording, caveats, or procedural guidance matter
+- Typical content:
+  - setup guides
+  - policy snippets
+  - legal / security guidance that must remain grounded in official text
+
+### 3.4 Why combine them?
+- Structured facts are better for deterministic lookup.
+- Document retrieval is still useful for narrative explanation and policy wording.
+- Separating the roles reduces hallucination risk and improves debugging.
 
 ---
 
 ## 4. End-to-end flow (step by step)
 
-### Step A. Ingest & clean
-- Entry point: Webhook receives `from`, `subject`, `body`
+### Step A. Ingest and clean
+- Entry point: webhook receives `from`, `subject`, `body`
 - Cleaning includes:
-  - stripping `Re:`/`Fwd:` prefixes
+  - stripping `Re:` / `Fwd:` prefixes
   - collapsing extra whitespace
   - truncating body to a safe token limit
   - extracting `sender_domain`
 
-### Step B. Regex fast-path (high-precision, low-cost)
-- Handle clearly identifiable cases (e.g., bank statements, spam recruiters)
-- If a fast-rule matches, return result immediately without calling LLMs
+### Step B. Regex fast-path
+- Handle clearly identifiable cases such as spam recruiter outreach or wrong-recipient emails
+- If a fast-rule matches, return immediately without LLM or retrieval
 
-Benefits: fast, cheap, deterministic
-
-### Step C. Embedding + retrieval
+### Step C. Example retrieval for classification
 - Create an embedding for the cleaned email text
 - Retrieve top-K similar examples from the `examples` index
-- Extract `sim_top1`, `sim_top2`, and rerank scores for the best candidates
+- Use similarity only as a classification signal, not as reply grounding
 
-### Step D. Compute confidence score
-
-Formula:
+### Step D. Compute classification confidence
 
 `score = 0.50*sim_top1 + 0.30*(sim_top1 - sim_top2) + 0.20*rerank_score`
 
-### Step E. Tiered LLM routing
-- If high-risk category or low confidence → route to Tier 2 (stronger, more expensive model)
-- Otherwise → use Tier 1 (cheaper model)
+### Step E. Tiered LLM classification
+- If high-risk or low-confidence -> use Tier 2
+- Otherwise -> use Tier 1
+- Output category, risk tags, route team, escalation signal, and confidence
 
-### Step F. Auto-reply vs human review
-- High-confidence and not high-risk → generate a reply
-- Low-confidence or high-risk → queue for human review (`wf_human_review_queue`)
+### Step F. Structured-first grounding
+- After category selection, call the structured lookup tool
+- Use category policy to decide:
+  - whether structured facts are required
+  - whether document retrieval is still needed
+  - which fact sets are expected
 
-### Step G. Reply generation (grounded only on `kb_policy`)
-- Retrieve policy evidence from `kb_policy`
-- Use evidence-only prompt to generate `draft_reply`
-- Output schema: `category`, `draft_reply`, `confidence`, `needs_escalation`, `route_team`, `evidence_refs`
+### Step G. Optional document retrieval
+- If structured facts are missing, incomplete, or the category requires narrative evidence, retrieve from `kb_policy`
+- Run a separate sufficiency gate before allowing auto-reply
 
----
-
-## 5. Confidence formula explained (detailed)
-
-### 5.1 What is `sim_top1`?
-`sim_top1` is the vector similarity score of the most similar example retrieved from `examples` (typically normalized between 0 and 1 by the vector store).
-
-Intuition:
-- Closer to 1: the incoming email is very similar to a known example
-- Closer to 0: there is little similarity to known examples
-
-### 5.2 What is `sim_top2`?
-`sim_top2` is the similarity score of the second-best retrieved example.
-
-Why include it?
-- If `top1` and `top2` are close (e.g., 0.88 vs 0.86), the case is ambiguous and less reliable for auto-decisions
-- A gap between `top1` and `top2` indicates a clearer match
-
-Thus `sim_top1 - sim_top2` is the *margin*.
-
-### 5.3 What is `rerank_score`?
-The first retrieval is a nearest-neighbor search (fast but approximate). A reranker (a cross-encoder or LLM-based scorer) provides a finer-grained quality score for the top candidates. `rerank_score` captures that refined judgement.
-
-### 5.4 Why weights 0.50 / 0.30 / 0.20?
-
-- `0.50 * sim_top1`:
-  - The primary semantic match is the most stable signal, so it receives the largest influence.
-  - It represents the system's baseline trust in the single best example.
-
-- `0.30 * (sim_top1 - sim_top2)`:
-  - This margin term penalizes ambiguity when two candidate examples are similarly close.
-  - It reduces confidence when the decision boundary is fuzzy.
-
-- `0.20 * rerank_score`:
-  - Reranking is a valuable secondary check but can be more variable (dependent on prompt and model).
-  - Giving it 0.20 helps improve precision without letting reranker noise dominate.
-
-### 5.5 Why not `0.40 * sim_top1`?
-Reducing `sim_top1`’s weight to 0.40 would relatively elevate the margin and rerank terms. That can cause:
-
-1. Conservative behavior: some clearly-matching emails might fall below the auto-reply threshold due to rerank variance and be unnecessarily escalated
-2. Lower decision stability: with a small dataset, rerank variance can cause larger swings in final scores
-
-Using 0.50 is a conservative default that prioritizes the strongest semantic match while still accounting for ambiguity and rerank signals. We recommend calibrating these weights with a larger labeled validation set.
-
-### 5.6 Thresholds
-- `auto_reply = 0.78`: scores above this threshold can be automatically replied to
-- `human_review = 0.60`: scores below this threshold go to human review
-- 0.60–0.78: intermediate zone; typically routed to human review for high-risk categories
-
-These thresholds are starting points and should be tuned on validation data.
+### Step H. Reply generation
+- Draft the reply from `grounding_evidence` only
+- `grounding_evidence` may contain:
+  - structured facts
+  - document evidence
+  - or both
+- If evidence is insufficient, acknowledge and escalate instead of guessing
 
 ---
 
-## 6. Cost-control design (why this saves money)
+## 5. When do we use structured facts vs document retrieval?
 
-1. Apply low-cost deterministic regex rules first to handle obvious cases
-2. Default to Tier 1 (cheaper model) for most classification
-3. Promote to Tier 2 only for low confidence or high-risk cases
-4. Cache embeddings by text hash to avoid recomputation
+### Structured-first categories
+- `Pricing Question`
+  - pricing tables, packaging, sales handoff, enterprise quote policy
+- `Security Question`
+  - capability matrix, supported controls, review routing, trust-policy registry
 
-This approach is far cheaper than using the top-tier model for every message.
+### Hybrid categories
+- `Setup Question`
+  - structured facts for supported integrations / prerequisites
+  - document retrieval for procedural steps and troubleshooting guidance
+
+### Review-only categories
+- `Billing / Finance`
+- `Contract / Legal`
+- `Legal / Compliance`
+- `Job Application / HR`
+- `Partnership / Business Development`
+
+These categories are typically escalated regardless of retrieval quality because the business risk is high.
+
+---
+
+## 6. Confidence formula explained
+
+### 6.1 What is `sim_top1`?
+The similarity score of the most similar reviewed example.
+
+### 6.2 What is `sim_top2`?
+The similarity score of the second-best example. The gap between them measures ambiguity.
+
+### 6.3 What is `rerank_score`?
+A refined quality signal from reranking the top retrieved candidates.
+
+### 6.4 Why keep retrieval in the loop?
+Because example similarity still helps classification on unseen emails.
+The key change is role separation:
+- retrieval for category hints
+- structured facts for deterministic business facts
+- `kb_policy` for evidence-backed narrative replies
 
 ---
 
 ## 7. Human-in-the-loop (HITL)
 
 Low-confidence and high-risk cases must be human-reviewed because:
-- Security/legal mistakes are costly
-- Missing an escalation in evaluation costs you points
+- security / legal mistakes are costly
+- unsupported claims score zero in the challenge
+- structured lookup gaps should not be patched by guesswork
 
-Only reviewer-approved examples are appended to the `examples` index to avoid feeding incorrect labels into retrievable data.
+Only reviewer-approved examples are appended to the `examples` index.
+Structured facts and official policy documents remain curated sources outside the feedback loop.
 
 ---
 
@@ -174,7 +180,10 @@ Only reviewer-approved examples are appended to the `examples` index to avoid fe
 2. Retry transient errors with exponential backoff
 3. Move permanent errors to a dead-letter queue and alert ops
 
-This prevents silent workflow failures and enables timely operator intervention.
+This is especially important now that the system depends on multiple source types:
+- structured lookup
+- vector retrieval
+- LLM classification / reply
 
 ---
 
@@ -182,10 +191,10 @@ This prevents silent workflow failures and enables timely operator intervention.
 
 - Main workflow: `workflows/wf_inbox_classifier.json`
 - Human review: `workflows/wf_human_review_queue.json`
-- Feedback to RAG: `workflows/wf_feedback_to_rag.json`
+- Feedback to examples: `workflows/wf_feedback_to_rag.json`
 - Error handler: `workflows/wf_error_handler.json`
 - Confidence policy: `src/config/confidence_policy.json`
-- Model routing: `src/config/model_routing.json`
+- Structured knowledge policy: `src/config/structured_knowledge.json`
 - Vector index config: `src/config/vector_indexes.json`
 
 ---
@@ -193,15 +202,19 @@ This prevents silent workflow failures and enables timely operator intervention.
 ## 10. Calibration and optimization (next steps)
 
 1. Collect at least 100 human-reviewed examples
-2. Grid-search weights and thresholds, for example testing:
-   - `sim_top1` in {0.40, 0.45, 0.50, 0.55}
-   - `margin` weight in {0.20, 0.25, 0.30, 0.35}
-   - `rerank` weight in {0.10, 0.15, 0.20, 0.25}
-3. Evaluate using macro-F1, escalation precision/recall, and cost per email
-4. Choose the weight configuration that balances accuracy and cost
+2. Measure:
+   - category accuracy
+   - escalation precision / recall
+   - structured lookup coverage
+   - document evidence sufficiency rate
+3. Audit per-category source usage:
+   - structured-only
+   - structured + documents
+   - escalate
+4. Tune thresholds so the system prefers escalation over unsupported answers
 
 ---
 
 ## 11. One-line summary
 
-This design uses a transparent multi-signal confidence score to let AI automatically handle the majority of emails while safely routing uncertain or high-risk cases to humans, and then feeding validated outcomes back into the system for controlled continuous improvement.
+This design keeps vector retrieval for classification and document fallback, but moves deterministic business knowledge toward structured lookup so the final agent is easier to audit, safer on unseen cases, and better aligned with the challenge scoring rules.
