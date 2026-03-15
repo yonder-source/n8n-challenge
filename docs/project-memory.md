@@ -33,6 +33,8 @@
 - 專案骨架與核心目錄已建立：`workflows/`、`src/config/`、`src/mappings/`、`src/prompts/`、`data/`、`eval/`、`docs/`、`scripts/`。
 - 已實作並執行資料準備腳本：`scripts/prepare_dataset.py`、`scripts/build_embedding_requests.py`。
 - 已產出資料工件：`data/test_dataset_canonical.csv`、`data/prepared_examples.jsonl`、`data/embedding_requests_examples.jsonl`（20 筆）。
+- 已依新版 `data/test_dataset.csv` 重建 `data/test_dataset_canonical.csv`，同步更新 canonical 衍生欄位與 `prepared_examples.jsonl` 的 eval labels。
+- 已將 `data/*.csv` 全部正規化為 LF，並更新 `scripts/prepare_dataset.py` 讓後續 canonical CSV 輸出固定維持 LF。
 - 已完成可匯入 workflow 骨架：
 	- `workflows/wf_inbox_classifier.json`
 	- `workflows/wf_human_review_queue.json`
@@ -60,6 +62,10 @@
   - `Http_StructuredLookup` 加入 `continueOnFail` 與 error fallback
   - `Code_ParseClassifier` 加入 SYNC 註解標記 `knowledgePolicies` 同步需求
   - `reply_system_prompt.md` 措辭統一為 grounding evidence
+- 已在 `wf_inbox_classifier` 前段加入顯式 merge 保留 context：
+  - `Http_Embed` 後新增 `Merge Embed Context`
+  - `Http_RetrieveExamples` 後新增 `Merge Retrieval Context`
+  - 前段 retrieval/confidence 鏈路改為顯式合併原始 email item 與 HTTP response，避免 `from`、`subject`、`body`、`query_text`、`is_high_risk` 在中途遺失
 
 ## 進行中
 - 將 workflow 中的佔位 HTTP 端點替換為實際 embedding/vector/LLM/structured lookup 供應商端點與憑證。
@@ -78,6 +84,7 @@
 - 採 Tier1/Tier2 多層模型路由以平衡成本與品質。
 - RAG 採 `examples` / `kb_policy` 雙索引隔離，禁止金標籤進入可檢索推論內容。
 - 知識來源採 structured-first、RAG-limited：可結構化事實先走 structured lookup，`kb_policy` 僅負責敘述性文件證據與 fallback。
+- workflow 資料保留策略採混合式：前段多節點共用 context 時優先用 Merge node 顯式合併，後段 localized 依賴則可用 `$('Node').item.json` 直接引用上游。
 - 信心分數採組合公式與雙閾值閘門，低信心導向人工審核。
 - 最終自動回覆判斷不只看 retrieval confidence，還必須同時通過 category confidence、risk gate 與 KB evidence sufficiency gate。
 - 回饋回寫僅接受 `approved` 審核結果，避免資料污染。
@@ -108,6 +115,10 @@
 - `scripts/prepare_dataset.py`
 
 ## 最近更新
+- 日期：2026-03-15
+- 內容：`test_dataset.csv` 更新後，已重建 `test_dataset_canonical.csv` 與 `prepared_examples.jsonl`，使共同欄位與新版測資一致；同時把 `data/*.csv` 全部轉成 LF，並調整 `scripts/prepare_dataset.py` 讓後續輸出固定採 LF。
+- 日期：2026-03-13
+- 內容：在 `wf_inbox_classifier` 前段加入 `Merge Embed Context` 與 `Merge Retrieval Context`，顯式保留 email context 穿越 embedding / example retrieval HTTP 鏈路；後半段則維持必要的 upstream reference，避免過度堆疊 merge node。
 - 日期：2026-03-13
 - 內容：Code review 修正 structured-first workflow 的 5 項問題（needs_escalation bug、review gate bypass、context echo 依賴、error fallback、knowledge policy 同步），並統一 prompt 措辭。
 - 日期：2026-03-13

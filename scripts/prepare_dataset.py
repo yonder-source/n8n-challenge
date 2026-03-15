@@ -90,7 +90,11 @@ def main() -> None:
     ]
 
     with OUTPUT_CANONICAL_CSV.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=canonical_headers)
+        writer = csv.DictWriter(
+            file,
+            fieldnames=canonical_headers,
+            lineterminator="\n",
+        )
         writer.writeheader()
         writer.writerows(rows)
 
