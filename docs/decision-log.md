@@ -15,6 +15,14 @@
 
 ## Entries
 
+### [2026-03-15] 對 unseen email 採固定 taxonomy + 保守升級，不動態產生新 category
+- 背景：官方 PDF 明確寫到提交後會以 `new email scenarios your agent hasn't seen before` 直接打 production webhook；同時分類描述為 `pricing, support, security, setup, off-topic, etc.`，表示公開 seed set 不是封閉題庫，但也未提供開放式新 label 的評測契約。
+- 決策：production 輸出維持固定 primary taxonomy；遇到新型、混合或無法穩定貼標的 email，不在線上動態建立新 category，而是映射到最接近且安全的既有類別，並以 `needs_escalation`、`risk_tags`、`secondary_categories`、route team 表達不確定性與後續路由。
+- 原因：競賽重點是對未見案例保持 grounded 與保守，而不是發明新 taxonomy；若輸出 schema 外 label，存在 eval / judge 不認列的風險。
+- 影響：workflow 與 prompts 應明確禁止 inventing new categories；文件需說明 unseen email 的主要處理策略是 novelty detection + human review，而不是 category expansion。
+- 替代方案：採 open-set dynamic category generation（不採用，競賽評測契約不明、可比性差、風險高）。
+- 狀態：Accepted
+
 ### [2026-03-13] 在前段 HTTP 鏈路加入 Merge 節點保留 email context
 - 背景：`Embed Query -> Retrieve Examples -> Compute Confidence` 前段會經過多個 `HTTP Request` 節點；若只依賴 response body 往下傳，原始 email 欄位與風險訊號可能在中途遺失。
 - 決策：在 `Http_Embed` 後加入 `Merge Embed Context`，在 `Http_RetrieveExamples` 後加入 `Merge Retrieval Context`，用 position-based combine 將原始上游 item 與 HTTP response 明確合併；後半段 localized 依賴則維持 `$('Node').item.json` 直接引用。

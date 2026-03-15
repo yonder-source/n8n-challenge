@@ -14,6 +14,7 @@
   - Evaluation system：用 n8n AI Evaluation 功能或等效流程，把測試案例逐筆跑過並由 LLM judge 以 0/1 評分。
 - Email agent 的 webhook 輸入格式為 `from`、`subject`、`body`；輸出至少要有 `category` 與 `draft_reply`。
 - 分類需能區分 `pricing`、`support`、`security`、`setup`、`off-topic` 等類型，且不同類型回覆策略不同。
+- 官方 PDF 用語是 `pricing, support, security, setup, off-topic, etc.`；可推知最終 production 測試不應假設公開 seed set 已覆蓋所有情境，但也沒有公開證據顯示評測接受動態新增 category label。
 - 回覆內容只能以 Nexus Integrations 官方文件/資源包為事實來源；不可臆測或超出文件作答。
 
 ## 官方評分與提交要求
@@ -22,6 +23,7 @@
   - 0 分：分類錯誤、產生幻覺、漏掉重要資訊、或本該升級卻硬答。
 - 官方明講：分類錯誤通常會導致回覆錯誤，因此分類本身就是高權重關鍵路徑。
 - 官方提交後會用「沒看過的新郵件情境」直接打 production webhook，檢查泛化能力；不能只記住公開測資答案。
+- 官方 PDF 原文是 `We'll trigger your production webhook with a POST request, sending new email scenarios your agent hasn't seen before`。
 - 競賽提交物除 workflow 本身外，還需要：
   - production webhook URL
   - workflow JSON export
@@ -88,12 +90,14 @@
 - 信心分數採組合公式與雙閾值閘門，低信心導向人工審核。
 - 最終自動回覆判斷不只看 retrieval confidence，還必須同時通過 category confidence、risk gate 與 KB evidence sufficiency gate。
 - 回饋回寫僅接受 `approved` 審核結果，避免資料污染。
+- 對 unseen / open-set email 的處理策略是固定 primary taxonomy + 保守升級；以 `needs_escalation`、`risk_tags`、`secondary_categories` 承接未知或混合意圖，而不是在線上發明新 category。
 
 ## 已知問題與避雷
 - 嚴禁將 `expected_category`、`expected_action` 寫入可檢索文本，避免標籤洩漏。
 - 小樣本（目前 20 筆）只適合流程打通，不足以做穩定閾值定版。
 - 未完成 provider wiring 前，workflow 為可匯入骨架，非最終可上線版本。
 - 官方會在提交後用新案例測 production webhook；任何只對公開測資做模板化或記憶化的設計都有高風險失分。
+- 若 classifier 對新型 email 產生 taxonomy 外 label，應視為 prompt / parser 偏移而非功能需求；需修正回固定 taxonomy 契約。
 - 回覆若超出 Nexus 文件可支持的內容，寧可升級人工也不要硬答；錯誤自信回覆是官方明確打 0 的情境。
 - `structured facts lookup` 若沒有明確來源版本與 audit log，仍可能退化成另一個黑箱；正式 provider 需保留 `fact_id`、來源與生效時間。
 - 需保留可對外展示的提交形態，不只是在本地跑 eval；最終要能提供 production webhook 與 demo 影片。
@@ -115,6 +119,8 @@
 - `scripts/prepare_dataset.py`
 
 ## 最近更新
+- 日期：2026-03-15
+- 內容：重新核對本地官方 PDF，確認 final evaluation 會以 `new email scenarios your agent hasn't seen before` 打 production webhook，且分類描述為 `pricing, support, security, setup, off-topic, etc.`；因此補充 repo 決策為固定 taxonomy + 保守升級，不採動態新增 category。
 - 日期：2026-03-15
 - 內容：`test_dataset.csv` 更新後，已重建 `test_dataset_canonical.csv` 與 `prepared_examples.jsonl`，使共同欄位與新版測資一致；同時把 `data/*.csv` 全部轉成 LF，並調整 `scripts/prepare_dataset.py` 讓後續輸出固定採 LF。
 - 日期：2026-03-13

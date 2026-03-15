@@ -8,6 +8,8 @@ Incoming emails can vary widely:
 - Pricing and commercial inquiries (Pricing / Partnership)
 - Emails that do not belong in support (Misdirected / Spam)
 
+The official challenge wording uses `pricing, support, security, setup, off-topic, etc.` and says the final webhook test will use new email scenarios the agent has not seen before. That means the system should handle unseen cases conservatively, but still stay within a fixed primary taxonomy for production output.
+
 The challenge is not only classification accuracy. The system must also avoid hallucinations, stay grounded in official Nexus material, and escalate when evidence is weak.
 
 This system aims to:
@@ -95,6 +97,7 @@ This system aims to:
 - If high-risk or low-confidence -> use Tier 2
 - Otherwise -> use Tier 1
 - Output category, risk tags, route team, escalation signal, and confidence
+- If the email does not fit cleanly, map it to the closest safe taxonomy category and escalate instead of inventing a new label
 
 ### Step F. Structured-first grounding
 - After category selection, call the structured lookup tool
