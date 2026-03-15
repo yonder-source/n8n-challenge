@@ -15,6 +15,14 @@
 
 ## Entries
 
+### [2026-03-13] 在前段 HTTP 鏈路加入 Merge 節點保留 email context
+- 背景：`Embed Query -> Retrieve Examples -> Compute Confidence` 前段會經過多個 `HTTP Request` 節點；若只依賴 response body 往下傳，原始 email 欄位與風險訊號可能在中途遺失。
+- 決策：在 `Http_Embed` 後加入 `Merge Embed Context`，在 `Http_RetrieveExamples` 後加入 `Merge Retrieval Context`，用 position-based combine 將原始上游 item 與 HTTP response 明確合併；後半段 localized 依賴則維持 `$('Node').item.json` 直接引用。
+- 原因：前段多個後續節點都需要原始 email context，顯式 merge 比分散的 upstream reference 更穩、更容易在 n8n UI debug；但若整條 workflow 到處加 merge node，會增加視覺噪音與維護成本。
+- 影響：`wf_inbox_classifier` 的前段資料流改為顯式保留 `from/subject/body/query_text/is_high_risk` 等欄位，`Code_ExtractEmbedding` 也改為從 merge 後 item 取值；後續 smoke test 需確認 n8n 實跑時 item count 與 combine-by-position 行為符合預期。
+- 替代方案：全程只用 `$('Node').item.json` 回抓上游（不採用，前段多節點重複依賴原始 context 時可讀性與穩定性較差）。
+- 狀態：Accepted
+
 ### [2026-03-13] Code review 修正：structured-first workflow 安全性強化
 - 背景：對 structured-first 變更做 code review 後發現 5 項問題（1 bug、2 設計缺陷、2 中風險）。
 - 決策：一次性修復全部問題。
